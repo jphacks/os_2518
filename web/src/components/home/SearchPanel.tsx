@@ -19,7 +19,8 @@ type Props = {
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   loading?: boolean;
-  unavailableUserIds?: Set<number>;
+  acceptedMatchMap?: Map<number, number>;
+  pendingUserIds?: Set<number>;
 };
 
 export function SearchPanel({
@@ -29,7 +30,8 @@ export function SearchPanel({
   onSendMatch,
   sendingTo,
   loading,
-  unavailableUserIds,
+  acceptedMatchMap,
+  pendingUserIds,
 }: Props) {
   const [form, setForm] = useState<SearchForm>({
     displayName: '',
@@ -130,7 +132,8 @@ export function SearchPanel({
         onSendMatch={onSendMatch}
         sendingTo={sendingTo}
         emptyMessage="検索結果はありません。"
-        unavailableUserIds={unavailableUserIds}
+        acceptedMatchMap={acceptedMatchMap}
+        pendingUserIds={pendingUserIds}
       />
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { User } from '@/types/domain';
 
 type Props = {
@@ -9,10 +11,19 @@ type Props = {
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   emptyMessage?: string;
-  unavailableUserIds?: Set<number>;
+  acceptedMatchMap?: Map<number, number>;
+  pendingUserIds?: Set<number>;
 };
 
-export function RecommendedList({ users, onSendMatch, sendingTo, emptyMessage, unavailableUserIds }: Props) {
+export function RecommendedList({
+  users,
+  onSendMatch,
+  sendingTo,
+  emptyMessage,
+  acceptedMatchMap,
+  pendingUserIds,
+}: Props) {
+  const router = useRouter();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   if (users.length === 0) {
@@ -23,22 +34,43 @@ export function RecommendedList({ users, onSendMatch, sendingTo, emptyMessage, u
     setSelectedUser(null);
   };
 
-  const handleSendRequest = async () => {
-    if (!selectedUser || unavailableUserIds?.has(selectedUser.id) || sendingTo === selectedUser.id) {
+  const handlePrimaryAction = async () => {
+    if (!selectedUser) {
       return;
     }
+
+    const acceptedMatchId = acceptedMatchMap?.get(selectedUser.id) ?? null;
+    if (acceptedMatchId) {
+      router.push(`/matches/${acceptedMatchId}`);
+      closeModal();
+      return;
+    }
+
+    if (pendingUserIds?.has(selectedUser.id) || sendingTo === selectedUser.id) {
+      return;
+    }
+
     await onSendMatch(selectedUser.id);
     closeModal();
   };
 
   const isSendingSelected = selectedUser ? sendingTo === selectedUser.id : false;
-  const isUnavailableSelected = selectedUser ? unavailableUserIds?.has(selectedUser.id) ?? false : false;
-  const isButtonDisabled = isSendingSelected || isUnavailableSelected;
-  const buttonLabel = isUnavailableSelected ? '申請済み' : isSendingSelected ? '送信中...' : 'チャット申請';
+  const acceptedMatchId = selectedUser ? acceptedMatchMap?.get(selectedUser.id) ?? null : null;
+  const isPendingSelected = selectedUser ? pendingUserIds?.has(selectedUser.id) ?? false : false;
+  const isDisabled = !acceptedMatchId && (isPendingSelected || isSendingSelected);
+  const buttonLabel = acceptedMatchId
+    ? 'チャットへ移動'
+    : isPendingSelected
+      ? '承認待ち'
+      : isSendingSelected
+        ? '送信中...'
+        : 'チャット申請';
   const baseButtonClasses = 'w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed';
-  const buttonClasses = isButtonDisabled
-    ? `${baseButtonClasses} bg-slate-300 text-slate-600`
-    : `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`;
+  const buttonClasses = acceptedMatchId
+    ? `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`
+    : isDisabled
+      ? `${baseButtonClasses} bg-slate-300 text-slate-600`
+      : `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`;
 
   return (
     <>
@@ -146,8 +178,8 @@ export function RecommendedList({ users, onSendMatch, sendingTo, emptyMessage, u
               <button
                 type="button"
                 className={buttonClasses}
-                onClick={handleSendRequest}
-                disabled={isButtonDisabled}
+                onClick={() => void handlePrimaryAction()}
+                disabled={isDisabled}
               >
                 {buttonLabel}
               </button>

@@ -303,21 +303,29 @@ export default function HomePage() {
   );
 
   const pendingCount = useMemo(() => pendingMatches.length, [pendingMatches]);
-  const unavailableUserIds = useMemo(() => {
+  const acceptedMatchMap = useMemo(() => {
+    const map = new Map<number, number>();
     if (!user) {
-      return new Set<number>();
+      return map;
     }
-    const ids = new Set<number>();
     matches.forEach((match) => {
       const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
-      ids.add(otherId);
+      map.set(otherId, match.id);
     });
+    return map;
+  }, [matches, user]);
+
+  const pendingUserIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (!user) {
+      return ids;
+    }
     allPendingMatches.forEach((match) => {
       const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
       ids.add(otherId);
     });
     return ids;
-  }, [matches, allPendingMatches, user]);
+  }, [allPendingMatches, user]);
 
   if (!user) {
     return null;
@@ -368,7 +376,8 @@ export default function HomePage() {
               users={recommendedUsers}
               onSendMatch={handleSendMatch}
               sendingTo={sendingTo}
-              unavailableUserIds={unavailableUserIds}
+              acceptedMatchMap={acceptedMatchMap}
+              pendingUserIds={pendingUserIds}
             />
           ) : null}
 
@@ -384,7 +393,8 @@ export default function HomePage() {
               onSendMatch={handleSendMatch}
               sendingTo={sendingTo}
               loading={searchLoading}
-              unavailableUserIds={unavailableUserIds}
+              acceptedMatchMap={acceptedMatchMap}
+              pendingUserIds={pendingUserIds}
             />
           ) : null}
 
