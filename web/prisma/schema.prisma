@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Language {
+  id          Int               @id @default(autoincrement())
+  code        String            @unique
+  name        String
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  nativeUsers User[]            @relation("NativeLanguage")
+  targets     TargetLanguage[]
+
+  @@map("languages")
+}
+
+model User {
+  id               Int               @id @default(autoincrement())
+  displayName      String            @map("display_name")
+  email            String            @unique
+  passwordHash     String            @map("password_hash")
+  nativeLanguageId Int               @map("native_language_id")
+  hobby            String?
+  skill            String?
+  comment          String?
+  iconPath         String?           @map("icon_path")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  nativeLanguage   Language          @relation("NativeLanguage", fields: [nativeLanguageId], references: [id])
+  targets          TargetLanguage[]
+  matchesRequested Match[]           @relation("MatchesRequester")
+  matchesReceived  Match[]           @relation("MatchesReceiver")
+  messages         Message[]
+  notifications    Notification[]
+  refreshTokens    RefreshToken[]
+
+  @@map("users")
+}
+
+model TargetLanguage {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  languageId Int      @map("language_id")
+  level      Int
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageId], references: [id])
+
+  @@unique([userId, languageId])
+  @@map("target_languages")
+}
+
+model MatchStatus {
+  id        Int      @id
+  code      String   @unique
+  label     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  matches   Match[]
+
+  @@map("match_statuses")
+}
+
+model Match {
+  id           Int           @id @default(autoincrement())
+  requesterId  Int           @map("requester_id")
+  receiverId   Int           @map("receiver_id")
+  statusId     Int           @default(1) @map("status_id")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  acceptedAt   DateTime?     @map("accepted_at")
+  rejectedAt   DateTime?     @map("rejected_at")
+
+  requester User        @relation("MatchesRequester", fields: [requesterId], references: [id])
+  receiver  User        @relation("MatchesReceiver", fields: [receiverId], references: [id])
+  status    MatchStatus @relation(fields: [statusId], references: [id])
+  messages  Message[]
+
+  @@unique([requesterId, receiverId])
+  @@map("matches")
+}
+
+model Message {
+  id        Int       @id @default(autoincrement())
+  matchId   Int       @map("match_id")
+  senderId  Int       @map("sender_id")
+  content   String
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User  @relation(fields: [senderId], references: [id])
+
+  @@index([matchId])
+  @@map("messages")
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    Int              @map("user_id")
+  type      NotificationType
+  payload   Json
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  ipAddress String?   @map("ip_address")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum NotificationType {
+  MATCH_REQUEST
+  MATCH_ACCEPT
+  MATCH_REJECT
+  MESSAGE_RECEIVED
+  MESSAGE_READ
+}
