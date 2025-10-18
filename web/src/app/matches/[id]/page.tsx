@@ -12,6 +12,7 @@ import {
   acceptSchedule as acceptScheduleRequest,
   cancelSchedule as cancelScheduleRequest,
 } from '@/lib/api/schedules';
+import { translateMessage } from '@/lib/api/translation';
 import type { Match, Message } from '@/types/domain';
 import { ApiError } from '@/lib/api/client';
 import { ScheduleModal } from '@/components/matches/ScheduleModal';
@@ -33,6 +34,7 @@ export default function MatchChatPage() {
   const [scheduleModalError, setScheduleModalError] = useState<string | null>(null);
   const [acceptingScheduleId, setAcceptingScheduleId] = useState<number | null>(null);
   const [cancelingScheduleId, setCancelingScheduleId] = useState<number | null>(null);
+  const [translationStates, setTranslationStates] = useState<Record<number, { loading: boolean; text: string | null; error: string | null; visible: boolean }>>({});
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -43,6 +45,17 @@ export default function MatchChatPage() {
     }
     return match.requester.id === user.id ? match.receiver : match.requester;
   }, [match, user]);
+
+  const languageByUserId = useMemo(() => {
+    const map = new Map<number, string | null>();
+    if (match) {
+      map.set(match.requester.id, match.requester.nativeLanguage?.code ?? null);
+      map.set(match.receiver.id, match.receiver.nativeLanguage?.code ?? null);
+    }
+    return map;
+  }, [match]);
+
+  const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, [user.nativeLanguage?.code]);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -162,6 +175,74 @@ export default function MatchChatPage() {
   const handleNavigateToCalendar = useCallback(() => {
     router.push('/home?tab=calendar');
   }, [router]);
+
+  const handleToggleTranslation = useCallback(
+    async (message: Message) => {
+      if (message.senderId === user.id) {
+        return;
+      }
+
+      let shouldFetch = true;
+      setTranslationStates((prev) => {
+        const current = prev[message.id];
+        if (current?.text) {
+          shouldFetch = false;
+          return {
+            ...prev,
+            [message.id]: { ...current, visible: !current.visible },
+          };
+        }
+        return {
+          ...prev,
+          [message.id]: { loading: true, text: null, error: null, visible: true },
+        };
+      });
+
+      if (!shouldFetch) {
+        return;
+      }
+
+      const targetLang = userNativeLanguageCode;
+      if (!targetLang) {
+        setTranslationStates((prev) => ({
+          ...prev,
+          [message.id]: {
+            loading: false,
+            text: null,
+            error: '翻訳先の言語が設定されていません。プロフィールを確認してください。',
+            visible: true,
+          },
+        }));
+        return;
+      }
+
+      try {
+        const sourceLang = languageByUserId.get(message.senderId) ?? undefined;
+        const response = await translateMessage({ text: message.content, sourceLang, targetLang });
+        setTranslationStates((prev) => ({
+          ...prev,
+          [message.id]: {
+            loading: false,
+            text: response.translation,
+            error: null,
+            visible: true,
+          },
+        }));
+      } catch (err) {
+        console.error('Translation request failed', err);
+        setTranslationStates((prev) => ({
+          ...prev,
+          [message.id]: {
+            loading: false,
+            text: null,
+            error: err instanceof Error ? err.message : '翻訳に失敗しました',
+            visible: true,
+          },
+        }));
+      }
+    },
+    [languageByUserId, user.id, userNativeLanguageCode],
+  );
 
   const loadMatchDetail = useCallback(async () => {
     try {
@@ -299,6 +380,15 @@ export default function MatchChatPage() {
             {messages.map((message) => {
               const isMine = message.senderId === user.id;
               if (message.type === 'TEXT') {
+                const translationState = translationStates[message.id];
+                const buttonLabel = translationState?.loading
+                  ? '翻訳中...'
+                  : translationState?.text
+                    ? translationState.visible
+                      ? '翻訳を隠す'
+                      : '翻訳を表示'
+                    : 'メッセージを翻訳する';
+
                 return (
                   <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                     <div
@@ -308,6 +398,24 @@ export default function MatchChatPage() {
                     >
                       <p>{message.content}</p>
                       <p className="mt-1 text-xs opacity-70">{new Date(message.createdAt).toLocaleString()}</p>
+                      {!isMine ? (
+                        <div className="mt-2 space-y-1">
+                          <button
+                            type="button"
+                            className={`text-[11px] ${isMine ? 'text-blue-100' : 'text-blue-600'} underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-blue-300`}
+                            onClick={() => void handleToggleTranslation(message)}
+                            disabled={translationState?.loading}
+                          >
+                            {buttonLabel}
+                          </button>
+                          {translationState?.visible && translationState?.text ? (
+                            <p className="whitespace-pre-wrap text-xs text-slate-700">{translationState.text}</p>
+                          ) : null}
+                          {translationState?.error ? (
+                            <p className="text-xs text-red-500">{translationState.error}</p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );
