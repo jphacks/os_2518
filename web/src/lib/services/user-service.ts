@@ -1,3 +1,6 @@
+import type { Prisma } from '@prisma/client';
+
+import { MATCH_STATUS } from '@/lib/constants/match';
 import { AppError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { listUsersQuerySchema } from '@/lib/validators/users';
@@ -118,7 +121,7 @@ export async function listUsersForQuery(currentUserId: number, query: Record<str
   const parsed = listUsersQuerySchema.parse(query);
   const take = parsed.limit ?? 20;
 
-  const whereBase = {
+  const whereBase: Prisma.UserWhereInput = {
     id: { not: currentUserId },
   };
 
@@ -128,11 +131,34 @@ export async function listUsersForQuery(currentUserId: number, query: Record<str
     });
     const nativeLanguageIds = currentTargets.map((target) => target.languageId);
 
-    Object.assign(whereBase, {
-      nativeLanguageId: {
-        in: nativeLanguageIds.length > 0 ? nativeLanguageIds : undefined,
+    const existingMatches = await prisma.match.findMany({
+      where: {
+        OR: [{ requesterId: currentUserId }, { receiverId: currentUserId }],
+        statusId: {
+          in: [MATCH_STATUS.PENDING, MATCH_STATUS.ACCEPTED, MATCH_STATUS.REJECTED],
+        },
+      },
+      select: {
+        requesterId: true,
+        receiverId: true,
       },
     });
+
+    const excludedUserIds = new Set<number>();
+    existingMatches.forEach((match) => {
+      const otherId = match.requesterId === currentUserId ? match.receiverId : match.requesterId;
+      excludedUserIds.add(otherId);
+    });
+
+    const idFilter: Prisma.IntFilter = {
+      not: currentUserId,
+      notIn: excludedUserIds.size > 0 ? Array.from(excludedUserIds) : undefined,
+    };
+
+    whereBase.id = idFilter;
+    whereBase.nativeLanguageId = {
+      in: nativeLanguageIds.length > 0 ? nativeLanguageIds : undefined,
+    };
   }
 
   if (parsed.displayName) {
