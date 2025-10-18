@@ -212,24 +212,36 @@ const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, 
       }
 
       if (current?.showTranslation) {
-        setTranslationStates((prev) => ({
-          ...prev,
-          [message.id]: {
-            ...current,
-            showTranslation: false,
-          },
-        }));
+        setTranslationStates((prev) => {
+          const prevState = prev[message.id];
+          if (!prevState) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [message.id]: {
+              ...prevState,
+              showTranslation: false,
+            },
+          };
+        });
         return;
       }
 
       if (current?.status === 'done' && current.translation) {
-        setTranslationStates((prev) => ({
-          ...prev,
-          [message.id]: {
-            ...current,
-            showTranslation: true,
-          },
-        }));
+        setTranslationStates((prev) => {
+          const prevState = prev[message.id];
+          if (!prevState) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [message.id]: {
+              ...prevState,
+              showTranslation: true,
+            },
+          };
+        });
         return;
       }
 
@@ -268,7 +280,7 @@ const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, 
         }));
       }
     },
-    [languageByUserId, user.id, userNativeLanguageCode],
+    [languageByUserId, translationStates, user.id, userNativeLanguageCode],
   );
 
   const loadMatchDetail = useCallback(async () => {
