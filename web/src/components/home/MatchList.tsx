@@ -12,15 +12,22 @@ export function MatchList({ matches, currentUserId, onOpenChat }: Props) {
   if (matches.length === 0) {
     return <p className="text-sm text-slate-600">まだマッチングはありません。</p>;
   }
+
   console.log("matches", matches);
-  
+
   return (
     <div className="space-y-3">
       {matches.map((match) => {
-        const other = match.requester.id === currentUserId ? match.receiver : match.requester;
+        const other =
+          match.requester.id === currentUserId ? match.receiver : match.requester;
         const latest = match.latestMessage;
 
-        const hasUnread = true; // 未読判定
+        // ✅ 未読判定：最新メッセージが存在し、
+        //   自分が送信者ではなく、まだ既読になっていない場合
+        const hasUnread =
+          latest &&
+          latest.senderId !== currentUserId &&
+          !latest.isRead;
 
         return (
           <article
