@@ -27,6 +27,8 @@
     "date-fns": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
     "next": "15.5.6",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "uuid": "^13.0.0",

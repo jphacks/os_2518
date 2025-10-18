@@ -72,6 +72,7 @@ export type Schedule = {
   note: string | null;
   messageId?: number | null;
   status: ScheduleStatus;
+  reminderSentAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
