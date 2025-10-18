@@ -1,5 +1,6 @@
 # 留学生交流マッチングアプリ 仕様書
 
+
 ## 1. プロジェクト概要
 - 対象: 英語を練習したい日本の学生と、交流相手を探している留学生
 - 技術スタック: Next.js (TypeScript, App Router), Prisma, PostgreSQL, WebSocket (Next.js Route Handler + `ws`)
