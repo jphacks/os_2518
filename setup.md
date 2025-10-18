@@ -9,6 +9,12 @@ npm install --prefix web
 ```
 
 環境変数は `web/.env.example` を参考に `web/.env` を作成してください。
+Gmail 経由でリマインドメールを送信するため、以下も設定してください。
+
+```
+GMAIL_USER=<Gmail のメールアドレス>
+GMAIL_APP_PASSWORD=<アプリ用パスワード>
+```
 
 ## コマンド
 

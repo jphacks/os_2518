@@ -21,6 +21,7 @@ type Props = {
   loading?: boolean;
   acceptedMatchMap?: Map<number, number>;
   pendingUserIds?: Set<number>;
+  unavailableUserIds?: Set<number>;
 };
 
 export function SearchPanel({
@@ -32,6 +33,7 @@ export function SearchPanel({
   loading,
   acceptedMatchMap,
   pendingUserIds,
+  unavailableUserIds,
 }: Props) {
   const [form, setForm] = useState<SearchForm>({
     displayName: '',
@@ -134,6 +136,7 @@ export function SearchPanel({
         emptyMessage="検索結果はありません。"
         acceptedMatchMap={acceptedMatchMap}
         pendingUserIds={pendingUserIds}
+        unavailableUserIds={unavailableUserIds}
       />
     </div>
   );

@@ -44,12 +44,17 @@
    - フィルタ: 表示名、母国語、ターゲット言語、レベル
    - 結果: 無限スクロール可能なカードリスト
 
-4. **プロフィール**
+4. **カレンダー**
+   - FullCalendar による月/週/日表示の切り替え
+   - 自身に登録済みの予定（承認済みのみ）を表示
+   - ロケールは切り替え可能（初期値: 日本語）
+
+5. **プロフィール**
    - 自身のプロフィール表示 & 編集フォーム
    - ターゲット言語を複数管理 (追加/削除)
    - アイコンアップロード（画像プレビュー付き）
 
-5. **通知**
+6. **通知**
    - マッチング承認・拒否、メッセージ未読などの履歴一覧
    - 未読フラグ付きでソート
 
@@ -58,6 +63,13 @@
 - 入力: メッセージ送信フォーム (1〜2000文字)
 - 機能: WebSocket を介した新着メッセージ受信、既読更新
 - 履歴取得: GET `/api/v1/matches/{id}/messages`
+- 予定追加: メッセージ入力欄右に「📅 予定追加」ボタンを配置
+  - モーダルで「日付」「開始時間」「終了時間」「メモ（任意）」を入力
+  - **登録**: ステータス `CONFIRMED` の予定として即座に両者のカレンダーへ追加し、登録メッセージを生成（候補は1件のみ）
+  - **送信**: ステータス `PROPOSED` の予定提案を送信し、受信者はチャット内の特殊メッセージから登録／破棄操作が可能（複数候補をラジオ選択で提示）
+  - 提案メッセージと登録済みメッセージには「閉じる」「破棄」ボタンを配置し、送信者／受信者双方で破棄操作が可能（破棄時は「メッセージが廃棄されました。」の特殊メッセージを追加表示）
+  - 予定が登録されるとメッセージは登録済み表示に切り替わり、クリックでカレンダータブへ遷移
+  - **リマインダー**: 予定が `CONFIRMED` になると自動で当日0時のメールリマインダーを設定（Gmail）。宛先は交流双方のメールアドレス、送信には `.env` 設定の `GMAIL_USER` / `GMAIL_APP_PASSWORD` を利用
 
 ## 4. API 仕様
 
@@ -105,7 +117,15 @@
 | GET | `/api/v1/notifications` | 通知履歴をページング取得 |
 | POST | `/api/v1/notifications/{id}/read` | 通知を既読化 |
 - WebSocket: `/api/v1/ws`  
-  - イベント: `match.requested`, `match.responded`, `message.created`, `message.read`
+  - イベント: `match.requested`, `match.responded`, `message.created`, `message.read`, `message.updated`, `schedule.changed`
+
+### 4.7 スケジュール
+| メソッド | パス | 説明 |
+| --- | --- | --- |
+| POST | `/api/v1/matches/{id}/schedules` | 予定の登録/提案を作成（`action`: `confirm` / `propose`） |
+| POST | `/api/v1/schedules/{id}/accept` | 提案された予定を受信者が登録（`PROPOSED`→`CONFIRMED`） |
+| POST | `/api/v1/schedules/{id}/cancel` | 提案/登録済み予定の破棄（双方利用可、特殊メッセージ生成） |
+| GET | `/api/v1/schedules` | 自身に紐づく予定一覧を取得（カレンダー表示用） |
 
 ## 5. データモデル
 
@@ -136,11 +156,25 @@
 - `status_id`: 1=PENDING, 2=ACCEPTED, 3=REJECTED
 - `accepted_at`: 受諾日時、`rejected_at`: 拒否日時（任意）
 
-### 5.5 Messages
+### 5.5 Schedules
+| フィールド | 型 | 備考 |
+| --- | --- | --- |
+| id | int | PK |
+| match_id | int | FK `Matches` |
+| proposer_id / receiver_id | int | 予定を提案した側 / 受け取った側 |
+| message_id | int? | 提案・登録メッセージと紐付け（複数候補をまとめる） |
+| start_time / end_time | datetime | 予定の開始・終了時刻 |
+| note | string? | 任意メモ（メッセージ共通） |
+| status | enum | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `COMPLETED` |
+| created_at / updated_at | datetime | 自動設定 |
+
+### 5.6 Messages
+- `type`: `TEXT`, `SCHEDULE_PROPOSAL`, `SCHEDULE_CONFIRMED`, `SCHEDULE_CANCELLED`
+- `schedules`: 予定関連メッセージの場合に紐づく `Schedules` 複数件
 - `is_read`: 受信者が既読にした場合 true
 - 将来的に `attachments` を検討
 
-### 5.6 Notifications
+### 5.7 Notifications
 - `type`: `match_request`, `match_accept`, `match_reject`, `message_received`
 - `payload`: JSONB 型で関連 ID を保持
 - `is_read`: 既読フラグ

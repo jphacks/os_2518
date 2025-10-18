@@ -13,6 +13,7 @@ type Props = {
   emptyMessage?: string;
   acceptedMatchMap?: Map<number, number>;
   pendingUserIds?: Set<number>;
+  unavailableUserIds?: Set<number>;
 };
 
 export function RecommendedList({
@@ -22,6 +23,7 @@ export function RecommendedList({
   emptyMessage,
   acceptedMatchMap,
   pendingUserIds,
+  unavailableUserIds,
 }: Props) {
   const router = useRouter();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -46,7 +48,7 @@ export function RecommendedList({
       return;
     }
 
-    if (pendingUserIds?.has(selectedUser.id) || sendingTo === selectedUser.id) {
+    if (pendingUserIds?.has(selectedUser.id) || unavailableUserIds?.has(selectedUser.id) || sendingTo === selectedUser.id) {
       return;
     }
 
@@ -57,14 +59,17 @@ export function RecommendedList({
   const isSendingSelected = selectedUser ? sendingTo === selectedUser.id : false;
   const acceptedMatchId = selectedUser ? acceptedMatchMap?.get(selectedUser.id) ?? null : null;
   const isPendingSelected = selectedUser ? pendingUserIds?.has(selectedUser.id) ?? false : false;
-  const isDisabled = !acceptedMatchId && (isPendingSelected || isSendingSelected);
+  const isUnavailableSelected = selectedUser ? unavailableUserIds?.has(selectedUser.id) ?? false : false;
+  const isDisabled = !acceptedMatchId && (isPendingSelected || isUnavailableSelected || isSendingSelected);
   const buttonLabel = acceptedMatchId
     ? 'チャットへ移動'
     : isPendingSelected
       ? '承認待ち'
-      : isSendingSelected
-        ? '送信中...'
-        : 'チャット申請';
+      : isUnavailableSelected
+        ? '申請済み'
+        : isSendingSelected
+          ? '送信中...'
+          : 'チャット申請';
   const baseButtonClasses = 'w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed';
   const buttonClasses = acceptedMatchId
     ? `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`
