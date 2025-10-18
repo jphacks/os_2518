@@ -77,7 +77,19 @@ export default function HomePage() {
   const loadAcceptedMatches = useCallback(async () => {
     try {
       const response = await listMatches({ status: 'ACCEPTED', limit: 50 });
-      setMatches(response.matches);
+      const parsedTime = (value: string | undefined) => {
+        if (!value) {
+          return 0;
+        }
+        const time = new Date(value).getTime();
+        return Number.isNaN(time) ? 0 : time;
+      };
+      const sorted = [...response.matches].sort(
+        (a, b) =>
+          parsedTime(b.latestMessage?.createdAt ?? b.updatedAt ?? b.createdAt) -
+          parsedTime(a.latestMessage?.createdAt ?? a.updatedAt ?? a.createdAt),
+      );
+      setMatches(sorted);
     } catch (err) {
       console.error(err);
       setError('マッチング情報の取得に失敗しました');
