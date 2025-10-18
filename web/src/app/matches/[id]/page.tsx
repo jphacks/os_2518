@@ -7,7 +7,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getMatch } from '@/lib/api/matches';
 import { listMessages, markMessageAsRead, postMessage } from '@/lib/api/messages';
-import { createSchedule, acceptSchedule as acceptScheduleRequest } from '@/lib/api/schedules';
+import {
+  createSchedule,
+  acceptSchedule as acceptScheduleRequest,
+  cancelSchedule as cancelScheduleRequest,
+} from '@/lib/api/schedules';
 import type { Match, Message } from '@/types/domain';
 import { ApiError } from '@/lib/api/client';
 import { ScheduleModal } from '@/components/matches/ScheduleModal';
@@ -28,6 +32,7 @@ export default function MatchChatPage() {
   const [scheduleActionLoading, setScheduleActionLoading] = useState<'confirm' | 'propose' | null>(null);
   const [scheduleModalError, setScheduleModalError] = useState<string | null>(null);
   const [acceptingScheduleId, setAcceptingScheduleId] = useState<number | null>(null);
+  const [cancelingScheduleId, setCancelingScheduleId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const counterpart = useMemo(() => {
@@ -69,7 +74,7 @@ export default function MatchChatPage() {
   const handleScheduleAction = useCallback(
     async (
       action: 'confirm' | 'propose',
-      values: { date: string; startTime: string; endTime: string; note: string },
+      values: { slots: Array<{ date: string; startTime: string; endTime: string }>; note: string },
     ) => {
       if (!matchId || Number.isNaN(matchId)) {
         setScheduleModalError('マッチング情報が正しくありません');
@@ -79,22 +84,30 @@ export default function MatchChatPage() {
       setScheduleModalError(null);
       setScheduleActionLoading(action);
       try {
-        const start = new Date(`${values.date}T${values.startTime}`);
-        const end = new Date(`${values.date}T${values.endTime}`);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-          setScheduleModalError('日付と時間を正しく入力してください');
-          return;
-        }
-        if (end <= start) {
-          setScheduleModalError('終了時間は開始時間より後に設定してください');
-          return;
+        const targetSlots = action === 'confirm' ? values.slots.slice(0, 1) : values.slots;
+        const slots: Array<{ startTime: string; endTime: string }> = [];
+
+        for (const slot of targetSlots) {
+          const start = new Date(`${slot.date}T${slot.startTime}`);
+          const end = new Date(`${slot.date}T${slot.endTime}`);
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            setScheduleModalError('日付と時間を正しく入力してください');
+            return;
+          }
+          if (end <= start) {
+            setScheduleModalError('終了時間は開始時間より後に設定してください');
+            return;
+          }
+          slots.push({
+            startTime: start.toISOString(),
+            endTime: end.toISOString(),
+          });
         }
 
         await createSchedule(matchId, {
-          startTime: start.toISOString(),
-          endTime: end.toISOString(),
-          note: values.note.trim() ? values.note.trim() : undefined,
           action,
+          slots,
+          note: values.note.trim() ? values.note.trim() : undefined,
         });
         setIsScheduleModalOpen(false);
         await loadMessages();
@@ -123,6 +136,22 @@ export default function MatchChatPage() {
         setError('予定の登録に失敗しました');
       } finally {
         setAcceptingScheduleId(null);
+      }
+    },
+    [loadMessages],
+  );
+
+  const handleCancelSchedule = useCallback(
+    async (scheduleId: number) => {
+      setCancelingScheduleId(scheduleId);
+      try {
+        await cancelScheduleRequest(scheduleId);
+        await loadMessages();
+      } catch (err) {
+        console.error(err);
+        setError('予定の破棄に失敗しました');
+      } finally {
+        setCancelingScheduleId(null);
       }
     },
     [loadMessages],
@@ -259,6 +288,7 @@ export default function MatchChatPage() {
                   </div>
                 );
               }
+
               return (
                 <ScheduleMessageItem
                   key={message.id}
@@ -266,7 +296,9 @@ export default function MatchChatPage() {
                   isMine={isMine}
                   currentUserId={user.id}
                   onAccept={handleAcceptSchedule}
-                  accepting={acceptingScheduleId === message.schedule?.id}
+                  onCancel={handleCancelSchedule}
+                  acceptingScheduleId={acceptingScheduleId}
+                  cancelingScheduleId={cancelingScheduleId}
                   onNavigateToCalendar={handleNavigateToCalendar}
                 />
               );

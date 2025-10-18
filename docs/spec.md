@@ -65,8 +65,9 @@
 - 履歴取得: GET `/api/v1/matches/{id}/messages`
 - 予定追加: メッセージ入力欄右に「📅 予定追加」ボタンを配置
   - モーダルで「日付」「開始時間」「終了時間」「メモ（任意）」を入力
-  - **登録**: ステータス `CONFIRMED` の予定として即座に両者のカレンダーへ追加し、登録メッセージを生成
-  - **送信**: ステータス `PROPOSED` の予定提案を送信し、受信者はチャット内の特殊メッセージから登録操作が可能（単一候補をラジオ選択→登録ボタン）
+  - **登録**: ステータス `CONFIRMED` の予定として即座に両者のカレンダーへ追加し、登録メッセージを生成（候補は1件のみ）
+  - **送信**: ステータス `PROPOSED` の予定提案を送信し、受信者はチャット内の特殊メッセージから登録／破棄操作が可能（複数候補をラジオ選択で提示）
+  - 提案メッセージと登録済みメッセージには「閉じる」「破棄」ボタンを配置し、送信者／受信者双方で破棄操作が可能（破棄時は「メッセージが廃棄されました。」の特殊メッセージを追加表示）
   - 予定が登録されるとメッセージは登録済み表示に切り替わり、クリックでカレンダータブへ遷移
 
 ## 4. API 仕様
@@ -122,6 +123,7 @@
 | --- | --- | --- |
 | POST | `/api/v1/matches/{id}/schedules` | 予定の登録/提案を作成（`action`: `confirm` / `propose`） |
 | POST | `/api/v1/schedules/{id}/accept` | 提案された予定を受信者が登録（`PROPOSED`→`CONFIRMED`） |
+| POST | `/api/v1/schedules/{id}/cancel` | 提案/登録済み予定の破棄（双方利用可、特殊メッセージ生成） |
 | GET | `/api/v1/schedules` | 自身に紐づく予定一覧を取得（カレンダー表示用） |
 
 ## 5. データモデル
@@ -159,14 +161,15 @@
 | id | int | PK |
 | match_id | int | FK `Matches` |
 | proposer_id / receiver_id | int | 予定を提案した側 / 受け取った側 |
+| message_id | int? | 提案・登録メッセージと紐付け（複数候補をまとめる） |
 | start_time / end_time | datetime | 予定の開始・終了時刻 |
-| note | string? | 任意メモ |
+| note | string? | 任意メモ（メッセージ共通） |
 | status | enum | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `COMPLETED` |
 | created_at / updated_at | datetime | 自動設定 |
 
 ### 5.6 Messages
-- `type`: `TEXT`, `SCHEDULE_PROPOSAL`, `SCHEDULE_CONFIRMED`
-- `schedule_id`: スケジュールメッセージの場合に紐づく `Schedules` FK
+- `type`: `TEXT`, `SCHEDULE_PROPOSAL`, `SCHEDULE_CONFIRMED`, `SCHEDULE_CANCELLED`
+- `schedules`: 予定関連メッセージの場合に紐づく `Schedules` 複数件
 - `is_read`: 受信者が既読にした場合 true
 - 将来的に `attachments` を検討
 

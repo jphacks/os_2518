@@ -1,63 +1,100 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
-type ScheduleModalValues = {
+type ScheduleSlot = {
+  id: number;
   date: string;
   startTime: string;
   endTime: string;
-  note: string;
 };
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onAction: (action: 'confirm' | 'propose', values: ScheduleModalValues) => Promise<void>;
+  onAction: (
+    action: 'confirm' | 'propose',
+    values: { slots: Array<{ date: string; startTime: string; endTime: string }>; note: string },
+  ) => Promise<void>;
   loadingAction: 'confirm' | 'propose' | null;
   errorMessage?: string | null;
 };
 
-const initialValues: ScheduleModalValues = {
+const createEmptySlot = (seed = Date.now()): ScheduleSlot => ({
+  id: seed,
   date: '',
   startTime: '',
   endTime: '',
-  note: '',
-};
+});
 
 export function ScheduleModal({ open, onClose, onAction, loadingAction, errorMessage }: Props) {
-  const [form, setForm] = useState<ScheduleModalValues>(initialValues);
+  const [slots, setSlots] = useState<ScheduleSlot[]>([createEmptySlot()]);
+  const [note, setNote] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
-      setForm(initialValues);
+      setSlots([createEmptySlot()]);
+      setNote('');
       setLocalError(null);
     }
   }, [open]);
+
+  const hasMultipleSlots = useMemo(() => slots.length > 1, [slots.length]);
 
   if (!open) {
     return null;
   }
 
-  const handleChange = (field: keyof ScheduleModalValues) =>
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setForm((prev) => ({ ...prev, [field]: event.target.value }));
+  const handleSlotChange = (slotId: number, field: keyof Omit<ScheduleSlot, 'id'>) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setSlots((prev) => prev.map((slot) => (slot.id === slotId ? { ...slot, [field]: value } : slot)));
     };
 
-  const validate = () => {
-    if (!form.date || !form.startTime || !form.endTime) {
-      setLocalError('日付と開始時間・終了時間を入力してください');
+  const handleRemoveSlot = (slotId: number) => {
+    if (slots.length === 1) {
+      return;
+    }
+    setSlots((prev) => prev.filter((slot) => slot.id !== slotId));
+  };
+
+  const handleAddSlot = () => {
+    setSlots((prev) => [...prev, createEmptySlot(Date.now() + prev.length)]);
+  };
+
+  const validateSlots = (action: 'confirm' | 'propose') => {
+    for (const slot of slots) {
+      if (!slot.date || !slot.startTime || !slot.endTime) {
+        setLocalError('全ての候補に日付・開始時間・終了時間を入力してください');
+        return false;
+      }
+    }
+
+    if (action === 'confirm' && slots.length !== 1) {
+      setLocalError('登録では候補を1件のみ指定してください');
       return false;
     }
+
     setLocalError(null);
     return true;
   };
 
   const handleAction = async (action: 'confirm' | 'propose') => {
-    if (!validate()) {
+    if (!validateSlots(action)) {
       return;
     }
-    await onAction(action, form);
+
+    const payloadSlots = (action === 'confirm' ? slots.slice(0, 1) : slots).map((slot) => ({
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+    }));
+
+    await onAction(action, {
+      slots: payloadSlots,
+      note,
+    });
   };
 
   return (
@@ -71,43 +108,70 @@ export function ScheduleModal({ open, onClose, onAction, loadingAction, errorMes
         </div>
 
         <div className="mt-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">日付</label>
-            <input
-              type="date"
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={form.date}
-              onChange={handleChange('date')}
-            />
+          <div className="space-y-4">
+            {slots.map((slot, index) => (
+              <div key={slot.id} className="rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-900">候補 {index + 1}</p>
+                  {slots.length > 1 ? (
+                    <button
+                      type="button"
+                      className="text-xs text-red-600 hover:underline"
+                      onClick={() => handleRemoveSlot(slot.id)}
+                    >
+                      削除
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">日付</label>
+                    <input
+                      type="date"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      value={slot.date}
+                      onChange={handleSlotChange(slot.id, 'date')}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">開始時間</label>
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={slot.startTime}
+                        onChange={handleSlotChange(slot.id, 'startTime')}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">終了時間</label>
+                      <input
+                        type="time"
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={slot.endTime}
+                        onChange={handleSlotChange(slot.id, 'endTime')}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">開始時間</label>
-              <input
-                type="time"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.startTime}
-                onChange={handleChange('startTime')}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">終了時間</label>
-              <input
-                type="time"
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={form.endTime}
-                onChange={handleChange('endTime')}
-              />
-            </div>
-          </div>
+          <button
+            type="button"
+            className="w-full rounded-md border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            onClick={handleAddSlot}
+          >
+            候補を追加
+          </button>
           <div>
             <label className="block text-sm font-medium text-slate-700">メモ（任意）</label>
             <textarea
               rows={3}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="メモがあれば入力してください"
-              value={form.note}
-              onChange={handleChange('note')}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
             />
           </div>
         </div>
@@ -137,9 +201,10 @@ export function ScheduleModal({ open, onClose, onAction, loadingAction, errorMes
             onClick={() => void handleAction('propose')}
             disabled={loadingAction === 'propose'}
           >
-            {loadingAction === 'propose' ? '送信中...' : '送信'}
+            {loadingAction === 'propose' ? '提案中...' : '予定の提案'}
           </button>
         </div>
+        {hasMultipleSlots ? <p className="mt-2 text-xs text-slate-500">※ 予定の提案は複数候補をまとめて送信できます。</p> : null}
       </div>
     </div>
   );

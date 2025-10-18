@@ -102,15 +102,14 @@ model Message {
   senderId  Int       @map("sender_id")
   content   String
   type      MessageType @default(TEXT)
-  scheduleId Int?      @map("schedule_id")
   isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   sender User  @relation(fields: [senderId], references: [id])
+  schedules Schedule[]
 
   @@index([matchId])
   @@map("messages")
@@ -125,13 +124,14 @@ model Schedule {
   endTime    DateTime       @map("end_time")
   note       String?        @map("note")
   status     ScheduleStatus @default(PROPOSED)
+  messageId  Int?           @map("message_id")
   createdAt  DateTime       @default(now()) @map("created_at")
   updatedAt  DateTime       @updatedAt @map("updated_at")
 
   match    Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
   proposer User      @relation("ScheduleProposer", fields: [proposerId], references: [id], onDelete: Cascade)
   receiver User      @relation("ScheduleReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  messages Message[]
+  message  Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([matchId, startTime])
   @@index([proposerId])
@@ -150,6 +150,7 @@ enum MessageType {
   TEXT
   SCHEDULE_PROPOSAL
   SCHEDULE_CONFIRMED
+  SCHEDULE_CANCELLED
 }
 
 model Notification {

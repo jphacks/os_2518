@@ -37,8 +37,8 @@ export type Message = {
   matchId: number;
   senderId: number;
   content: string;
-  type: 'TEXT' | 'SCHEDULE_PROPOSAL' | 'SCHEDULE_CONFIRMED';
-  schedule?: Schedule | null;
+  type: 'TEXT' | 'SCHEDULE_PROPOSAL' | 'SCHEDULE_CONFIRMED' | 'SCHEDULE_CANCELLED';
+  schedules?: Schedule[];
   isRead: boolean;
   readAt: string | null;
   createdAt: string;
@@ -70,6 +70,7 @@ export type Schedule = {
   startTime: string;
   endTime: string;
   note: string | null;
+  messageId?: number | null;
   status: ScheduleStatus;
   createdAt: string;
   updatedAt: string;

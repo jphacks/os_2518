@@ -33,7 +33,9 @@ export async function listMessages(matchId: number, userId: number, query: Recor
   const messages = await prisma.message.findMany({
     where: { matchId },
     include: {
-      schedule: true,
+      schedules: {
+        orderBy: { startTime: 'asc' },
+      },
     },
     orderBy: { createdAt: 'desc' },
     take,
@@ -62,7 +64,7 @@ export async function createMessage(matchId: number, userId: number, payload: un
       type: 'TEXT',
     },
     include: {
-      schedule: true,
+      schedules: true,
     },
   });
 
