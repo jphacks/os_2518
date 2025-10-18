@@ -44,12 +44,17 @@
    - フィルタ: 表示名、母国語、ターゲット言語、レベル
    - 結果: 無限スクロール可能なカードリスト
 
-4. **プロフィール**
+4. **カレンダー**
+   - FullCalendar による月/週/日表示の切り替え
+   - 自身に登録済みの予定（承認済みのみ）を表示
+   - ロケールは切り替え可能（初期値: 日本語）
+
+5. **プロフィール**
    - 自身のプロフィール表示 & 編集フォーム
    - ターゲット言語を複数管理 (追加/削除)
    - アイコンアップロード（画像プレビュー付き）
 
-5. **通知**
+6. **通知**
    - マッチング承認・拒否、メッセージ未読などの履歴一覧
    - 未読フラグ付きでソート
 
@@ -58,6 +63,11 @@
 - 入力: メッセージ送信フォーム (1〜2000文字)
 - 機能: WebSocket を介した新着メッセージ受信、既読更新
 - 履歴取得: GET `/api/v1/matches/{id}/messages`
+- 予定追加: メッセージ入力欄右に「📅 予定追加」ボタンを配置
+  - モーダルで「日付」「開始時間」「終了時間」「メモ（任意）」を入力
+  - **登録**: ステータス `CONFIRMED` の予定として即座に両者のカレンダーへ追加し、登録メッセージを生成
+  - **送信**: ステータス `PROPOSED` の予定提案を送信し、受信者はチャット内の特殊メッセージから登録操作が可能（単一候補をラジオ選択→登録ボタン）
+  - 予定が登録されるとメッセージは登録済み表示に切り替わり、クリックでカレンダータブへ遷移
 
 ## 4. API 仕様
 
@@ -105,7 +115,14 @@
 | GET | `/api/v1/notifications` | 通知履歴をページング取得 |
 | POST | `/api/v1/notifications/{id}/read` | 通知を既読化 |
 - WebSocket: `/api/v1/ws`  
-  - イベント: `match.requested`, `match.responded`, `message.created`, `message.read`
+  - イベント: `match.requested`, `match.responded`, `message.created`, `message.read`, `message.updated`, `schedule.changed`
+
+### 4.7 スケジュール
+| メソッド | パス | 説明 |
+| --- | --- | --- |
+| POST | `/api/v1/matches/{id}/schedules` | 予定の登録/提案を作成（`action`: `confirm` / `propose`） |
+| POST | `/api/v1/schedules/{id}/accept` | 提案された予定を受信者が登録（`PROPOSED`→`CONFIRMED`） |
+| GET | `/api/v1/schedules` | 自身に紐づく予定一覧を取得（カレンダー表示用） |
 
 ## 5. データモデル
 
@@ -136,11 +153,24 @@
 - `status_id`: 1=PENDING, 2=ACCEPTED, 3=REJECTED
 - `accepted_at`: 受諾日時、`rejected_at`: 拒否日時（任意）
 
-### 5.5 Messages
+### 5.5 Schedules
+| フィールド | 型 | 備考 |
+| --- | --- | --- |
+| id | int | PK |
+| match_id | int | FK `Matches` |
+| proposer_id / receiver_id | int | 予定を提案した側 / 受け取った側 |
+| start_time / end_time | datetime | 予定の開始・終了時刻 |
+| note | string? | 任意メモ |
+| status | enum | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `COMPLETED` |
+| created_at / updated_at | datetime | 自動設定 |
+
+### 5.6 Messages
+- `type`: `TEXT`, `SCHEDULE_PROPOSAL`, `SCHEDULE_CONFIRMED`
+- `schedule_id`: スケジュールメッセージの場合に紐づく `Schedules` FK
 - `is_read`: 受信者が既読にした場合 true
 - 将来的に `attachments` を検討
 
-### 5.6 Notifications
+### 5.7 Notifications
 - `type`: `match_request`, `match_accept`, `match_reject`, `message_received`
 - `payload`: JSONB 型で関連 ID を保持
 - `is_read`: 既読フラグ
