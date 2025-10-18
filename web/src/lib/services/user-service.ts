@@ -151,25 +151,34 @@ export async function listUsersForQuery(currentUserId: number, query: Record<str
 
   const cursor = parsed.cursor ? { id: parsed.cursor } : undefined;
 
+  const targetFilter =
+    parsed.targetLanguageCode || parsed.targetLevelGte !== undefined
+      ? {
+          targets: {
+            some: {
+              ...(parsed.targetLanguageCode
+                ? {
+                    language: {
+                      code: parsed.targetLanguageCode,
+                    },
+                  }
+                : {}),
+              ...(parsed.targetLevelGte !== undefined
+                ? {
+                    level: {
+                      gte: parsed.targetLevelGte,
+                    },
+                  }
+                : {}),
+            },
+          },
+        }
+      : {};
+
   const users = await prisma.user.findMany({
     where: {
       ...whereBase,
-      ...(parsed.targetLanguageCode
-        ? {
-            targets: {
-              some: {
-                language: {
-                  code: parsed.targetLanguageCode,
-                },
-                level: parsed.targetLevelGte
-                  ? {
-                      gte: parsed.targetLevelGte,
-                    }
-                  : undefined,
-              },
-            },
-          }
-        : {}),
+      ...targetFilter,
     },
     include: {
       nativeLanguage: true,

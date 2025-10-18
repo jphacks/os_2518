@@ -8,7 +8,7 @@ type SearchForm = {
   displayName: string;
   nativeLanguageCode: string;
   targetLanguageCode: string;
-  targetLevelGte: number;
+  targetLevelGte: number | '';
 };
 
 type Props = {
@@ -25,7 +25,7 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
     displayName: '',
     nativeLanguageCode: '',
     targetLanguageCode: '',
-    targetLevelGte: 0,
+    targetLevelGte: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,7 +36,7 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
       displayName: form.displayName || undefined,
       nativeLanguageCode: form.nativeLanguageCode || undefined,
       targetLanguageCode: form.targetLanguageCode || undefined,
-      targetLevelGte: form.targetLevelGte ?? undefined,
+      targetLevelGte: form.targetLevelGte === '' ? undefined : form.targetLevelGte,
     });
     setSubmitting(false);
   };
@@ -90,8 +90,14 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
             <select
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               value={form.targetLevelGte}
-              onChange={(event) => setForm((prev) => ({ ...prev, targetLevelGte: Number(event.target.value) }))}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  targetLevelGte: event.target.value === '' ? '' : Number(event.target.value),
+                }))
+              }
             >
+              <option value="">なし</option>
               {[0, 1, 2, 3, 4, 5].map((level) => (
                 <option key={level} value={level}>
                   レベル {level} 以上
