@@ -8,13 +8,14 @@ type Props = {
   users: User[];
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
+  emptyMessage?: string;
 };
 
-export function RecommendedList({ users, onSendMatch, sendingTo }: Props) {
+export function RecommendedList({ users, onSendMatch, sendingTo, emptyMessage }: Props) {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   if (users.length === 0) {
-    return <p className="text-sm text-slate-600">条件に合うおすすめユーザーが見つかりませんでした。</p>;
+    return <p className="text-sm text-slate-600">{emptyMessage ?? '条件に合うおすすめユーザーが見つかりませんでした。'}</p>;
   }
 
   const closeModal = () => {
