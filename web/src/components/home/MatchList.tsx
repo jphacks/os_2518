@@ -13,8 +13,6 @@ export function MatchList({ matches, currentUserId, onOpenChat }: Props) {
     return <p className="text-sm text-slate-600">まだマッチングはありません。</p>;
   }
 
-  console.log("matches", matches);
-
   return (
     <div className="space-y-3">
       {matches.map((match) => {
