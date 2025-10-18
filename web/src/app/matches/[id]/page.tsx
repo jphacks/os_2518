@@ -22,6 +22,8 @@ export default function MatchChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const lastScrollY = useRef(0);
 
   const counterpart = useMemo(() => {
     if (!user || !match) {
@@ -113,6 +115,24 @@ export default function MatchChatPage() {
     };
   }, [matchId, loadMessages]);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const previousY = lastScrollY.current;
+      if (currentY > previousY && currentY > 80) {
+        setHeaderHidden(true);
+      } else if (currentY < previousY - 10) {
+        setHeaderHidden(false);
+      }
+      lastScrollY.current = currentY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   const handleSendMessage = async () => {
     if (!newMessage.trim()) {
       return;
@@ -141,7 +161,11 @@ export default function MatchChatPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
+      <header
+        className={`fixed left-0 right-0 top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur transition-transform duration-300 ${
+          headerHidden ? '-translate-y-full' : 'translate-y-0'
+        }`}
+      >
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
           <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => router.push('/home')}>
             ← ホームに戻る
@@ -153,7 +177,7 @@ export default function MatchChatPage() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 py-6">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-4 pb-6 pt-24">
         {loading ? <p className="text-sm text-slate-600">読み込み中...</p> : null}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
