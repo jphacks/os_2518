@@ -19,9 +19,18 @@ type Props = {
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   loading?: boolean;
+  unavailableUserIds?: Set<number>;
 };
 
-export function SearchPanel({ languages, results, onSearch, onSendMatch, sendingTo, loading }: Props) {
+export function SearchPanel({
+  languages,
+  results,
+  onSearch,
+  onSendMatch,
+  sendingTo,
+  loading,
+  unavailableUserIds,
+}: Props) {
   const [form, setForm] = useState<SearchForm>({
     displayName: '',
     nativeLanguageCode: '',
@@ -121,6 +130,7 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
         onSendMatch={onSendMatch}
         sendingTo={sendingTo}
         emptyMessage="検索結果はありません。"
+        unavailableUserIds={unavailableUserIds}
       />
     </div>
   );
