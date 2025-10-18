@@ -38,6 +38,7 @@ export default function HomePage() {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [pendingMatches, setPendingMatches] = useState<Match[]>([]);
+  const [allPendingMatches, setAllPendingMatches] = useState<Match[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Match | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sendingTo, setSendingTo] = useState<number | null>(null);
@@ -84,14 +85,21 @@ export default function HomePage() {
   }, []);
 
   const loadPendingMatches = useCallback(async () => {
+    if (!user) {
+      setPendingMatches([]);
+      setAllPendingMatches([]);
+      return;
+    }
     try {
       const response = await listMatches({ status: 'PENDING', limit: 50 });
-      setPendingMatches(response.matches);
+      setAllPendingMatches(response.matches);
+      const incomingRequests = response.matches.filter((match) => match.receiver.id === user.id);
+      setPendingMatches(incomingRequests);
     } catch (err) {
       console.error(err);
       setError('チャット申請の取得に失敗しました');
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -166,7 +174,7 @@ export default function HomePage() {
       setError(null);
       try {
         await createMatch({ receiverId });
-        await loadAcceptedMatches();
+        await Promise.all([loadAcceptedMatches(), loadPendingMatches()]);
       } catch (err) {
         console.error(err);
         if (err instanceof ApiError) {
@@ -178,7 +186,7 @@ export default function HomePage() {
         setSendingTo(null);
       }
     },
-    [loadAcceptedMatches],
+    [loadAcceptedMatches, loadPendingMatches],
   );
 
   const handleSearch = useCallback(
@@ -295,6 +303,21 @@ export default function HomePage() {
   );
 
   const pendingCount = useMemo(() => pendingMatches.length, [pendingMatches]);
+  const unavailableUserIds = useMemo(() => {
+    if (!user) {
+      return new Set<number>();
+    }
+    const ids = new Set<number>();
+    matches.forEach((match) => {
+      const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
+      ids.add(otherId);
+    });
+    allPendingMatches.forEach((match) => {
+      const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
+      ids.add(otherId);
+    });
+    return ids;
+  }, [matches, allPendingMatches, user]);
 
   if (!user) {
     return null;
@@ -341,7 +364,12 @@ export default function HomePage() {
 
         <section className="mt-6">
           {activeTab === 'recommended' ? (
-            <RecommendedList users={recommendedUsers} onSendMatch={handleSendMatch} sendingTo={sendingTo} />
+            <RecommendedList
+              users={recommendedUsers}
+              onSendMatch={handleSendMatch}
+              sendingTo={sendingTo}
+              unavailableUserIds={unavailableUserIds}
+            />
           ) : null}
 
           {activeTab === 'contacts' ? (
@@ -356,6 +384,7 @@ export default function HomePage() {
               onSendMatch={handleSendMatch}
               sendingTo={sendingTo}
               loading={searchLoading}
+              unavailableUserIds={unavailableUserIds}
             />
           ) : null}
 

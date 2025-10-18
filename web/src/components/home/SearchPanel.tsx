@@ -18,9 +18,18 @@ type Props = {
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   loading?: boolean;
+  unavailableUserIds?: Set<number>;
 };
 
-export function SearchPanel({ languages, results, onSearch, onSendMatch, sendingTo, loading }: Props) {
+export function SearchPanel({
+  languages,
+  results,
+  onSearch,
+  onSendMatch,
+  sendingTo,
+  loading,
+  unavailableUserIds,
+}: Props) {
   const [form, setForm] = useState<SearchForm>({
     displayName: '',
     nativeLanguageCode: '',
@@ -110,29 +119,45 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
       </form>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {results.map((user) => (
-          <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-base font-semibold text-slate-900">{user.displayName}</h3>
-            <p className="text-sm text-slate-600">母国語: {user.nativeLanguage?.name ?? '未設定'}</p>
-            <p className="text-sm text-slate-600">趣味: {user.hobby ?? '未設定'}</p>
-            <div className="mt-2 text-xs text-slate-500">
-              練習中:
-              <ul className="mt-1 space-y-0.5">
-                {user.targetLanguages.map((target) => (
-                  <li key={target.id}>{target.language?.name ?? '未設定'} / レベル {target.level}</li>
-                ))}
-              </ul>
-            </div>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => onSendMatch(user.id)}
-              disabled={sendingTo === user.id}
-            >
-              {sendingTo === user.id ? '送信中...' : 'マッチングを送る'}
-            </button>
-          </article>
-        ))}
+        {results.map((user) => {
+          const isUnavailable = unavailableUserIds?.has(user.id) ?? false;
+          const isSending = sendingTo === user.id;
+          const isDisabled = isUnavailable || isSending;
+          const baseButtonClasses = 'mt-3 w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed';
+          const buttonClasses = isDisabled
+            ? `${baseButtonClasses} bg-slate-300 text-slate-600`
+            : `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`;
+          const label = isUnavailable ? '申請済み' : isSending ? '送信中...' : 'マッチングを送る';
+
+          return (
+            <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="text-base font-semibold text-slate-900">{user.displayName}</h3>
+              <p className="text-sm text-slate-600">母国語: {user.nativeLanguage?.name ?? '未設定'}</p>
+              <p className="text-sm text-slate-600">趣味: {user.hobby ?? '未設定'}</p>
+              <div className="mt-2 text-xs text-slate-500">
+                練習中:
+                <ul className="mt-1 space-y-0.5">
+                  {user.targetLanguages.map((target) => (
+                    <li key={target.id}>{target.language?.name ?? '未設定'} / レベル {target.level}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                type="button"
+                className={buttonClasses}
+                onClick={() => {
+                  if (isUnavailable) {
+                    return;
+                  }
+                  void onSendMatch(user.id);
+                }}
+                disabled={isDisabled}
+              >
+                {label}
+              </button>
+            </article>
+          );
+        })}
         {results.length === 0 ? <p className="text-sm text-slate-600">検索結果はありません。</p> : null}
       </div>
     </div>

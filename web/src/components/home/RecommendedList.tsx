@@ -8,9 +8,10 @@ type Props = {
   users: User[];
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
+  unavailableUserIds?: Set<number>;
 };
 
-export function RecommendedList({ users, onSendMatch, sendingTo }: Props) {
+export function RecommendedList({ users, onSendMatch, sendingTo, unavailableUserIds }: Props) {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   if (users.length === 0) {
@@ -22,12 +23,21 @@ export function RecommendedList({ users, onSendMatch, sendingTo }: Props) {
   };
 
   const handleSendRequest = async () => {
-    if (!selectedUser) {
+    if (!selectedUser || unavailableUserIds?.has(selectedUser.id) || sendingTo === selectedUser.id) {
       return;
     }
     await onSendMatch(selectedUser.id);
     closeModal();
   };
+
+  const isSendingSelected = selectedUser ? sendingTo === selectedUser.id : false;
+  const isUnavailableSelected = selectedUser ? unavailableUserIds?.has(selectedUser.id) ?? false : false;
+  const isButtonDisabled = isSendingSelected || isUnavailableSelected;
+  const buttonLabel = isUnavailableSelected ? '申請済み' : isSendingSelected ? '送信中...' : 'チャット申請';
+  const baseButtonClasses = 'w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed';
+  const buttonClasses = isButtonDisabled
+    ? `${baseButtonClasses} bg-slate-300 text-slate-600`
+    : `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`;
 
   return (
     <>
@@ -134,11 +144,11 @@ export function RecommendedList({ users, onSendMatch, sendingTo }: Props) {
             <div className="mt-8">
               <button
                 type="button"
-                className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className={buttonClasses}
                 onClick={handleSendRequest}
-                disabled={sendingTo === selectedUser.id}
+                disabled={isButtonDisabled}
               >
-                {sendingTo === selectedUser.id ? '送信中...' : 'チャット申請'}
+                {buttonLabel}
               </button>
             </div>
           </div>
