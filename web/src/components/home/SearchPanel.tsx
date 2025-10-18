@@ -2,13 +2,14 @@
 
 import { FormEvent, useState } from 'react';
 
+import { RecommendedList } from '@/components/home/RecommendedList';
 import { Language, User } from '@/types/domain';
 
 type SearchForm = {
   displayName: string;
   nativeLanguageCode: string;
   targetLanguageCode: string;
-  targetLevelGte: number;
+  targetLevelGte: number | '';
 };
 
 type Props = {
@@ -34,7 +35,7 @@ export function SearchPanel({
     displayName: '',
     nativeLanguageCode: '',
     targetLanguageCode: '',
-    targetLevelGte: 0,
+    targetLevelGte: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,7 +46,7 @@ export function SearchPanel({
       displayName: form.displayName || undefined,
       nativeLanguageCode: form.nativeLanguageCode || undefined,
       targetLanguageCode: form.targetLanguageCode || undefined,
-      targetLevelGte: form.targetLevelGte ?? undefined,
+      targetLevelGte: form.targetLevelGte === '' ? undefined : form.targetLevelGte,
     });
     setSubmitting(false);
   };
@@ -99,8 +100,14 @@ export function SearchPanel({
             <select
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               value={form.targetLevelGte}
-              onChange={(event) => setForm((prev) => ({ ...prev, targetLevelGte: Number(event.target.value) }))}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  targetLevelGte: event.target.value === '' ? '' : Number(event.target.value),
+                }))
+              }
             >
+              <option value="">なし</option>
               {[0, 1, 2, 3, 4, 5].map((level) => (
                 <option key={level} value={level}>
                   レベル {level} 以上
@@ -118,48 +125,13 @@ export function SearchPanel({
         </button>
       </form>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {results.map((user) => {
-          const isUnavailable = unavailableUserIds?.has(user.id) ?? false;
-          const isSending = sendingTo === user.id;
-          const isDisabled = isUnavailable || isSending;
-          const baseButtonClasses = 'mt-3 w-full rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed';
-          const buttonClasses = isDisabled
-            ? `${baseButtonClasses} bg-slate-300 text-slate-600`
-            : `${baseButtonClasses} bg-blue-600 text-white hover:bg-blue-500`;
-          const label = isUnavailable ? '申請済み' : isSending ? '送信中...' : 'マッチングを送る';
-
-          return (
-            <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-base font-semibold text-slate-900">{user.displayName}</h3>
-              <p className="text-sm text-slate-600">母国語: {user.nativeLanguage?.name ?? '未設定'}</p>
-              <p className="text-sm text-slate-600">趣味: {user.hobby ?? '未設定'}</p>
-              <div className="mt-2 text-xs text-slate-500">
-                練習中:
-                <ul className="mt-1 space-y-0.5">
-                  {user.targetLanguages.map((target) => (
-                    <li key={target.id}>{target.language?.name ?? '未設定'} / レベル {target.level}</li>
-                  ))}
-                </ul>
-              </div>
-              <button
-                type="button"
-                className={buttonClasses}
-                onClick={() => {
-                  if (isUnavailable) {
-                    return;
-                  }
-                  void onSendMatch(user.id);
-                }}
-                disabled={isDisabled}
-              >
-                {label}
-              </button>
-            </article>
-          );
-        })}
-        {results.length === 0 ? <p className="text-sm text-slate-600">検索結果はありません。</p> : null}
-      </div>
+      <RecommendedList
+        users={results}
+        onSendMatch={onSendMatch}
+        sendingTo={sendingTo}
+        emptyMessage="検索結果はありません。"
+        unavailableUserIds={unavailableUserIds}
+      />
     </div>
   );
 }
