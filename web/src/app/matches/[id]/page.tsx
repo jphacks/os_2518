@@ -34,7 +34,12 @@ export default function MatchChatPage() {
   const [scheduleModalError, setScheduleModalError] = useState<string | null>(null);
   const [acceptingScheduleId, setAcceptingScheduleId] = useState<number | null>(null);
   const [cancelingScheduleId, setCancelingScheduleId] = useState<number | null>(null);
-  const [translationStates, setTranslationStates] = useState<Record<number, { loading: boolean; text: string | null; error: string | null; visible: boolean }>>({});
+  const [translationStates, setTranslationStates] = useState<Record<number, {
+    status: 'idle' | 'loading' | 'done' | 'error';
+    translation: string | null;
+    error: string | null;
+    showTranslation: boolean;
+  }>>({});
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [headerHidden, setHeaderHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -55,7 +60,11 @@ export default function MatchChatPage() {
     return map;
   }, [match]);
 
-  const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, [user.nativeLanguage?.code]);
+const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, [user.nativeLanguage?.code]);
+
+  useEffect(() => {
+    setTranslationStates({});
+  }, [matchId]);
 
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -182,39 +191,57 @@ export default function MatchChatPage() {
         return;
       }
 
-      let shouldFetch = true;
-      setTranslationStates((prev) => {
-        const current = prev[message.id];
-        if (current?.text) {
-          shouldFetch = false;
-          return {
-            ...prev,
-            [message.id]: { ...current, visible: !current.visible },
-          };
-        }
-        return {
-          ...prev,
-          [message.id]: { loading: true, text: null, error: null, visible: true },
-        };
-      });
-
-      if (!shouldFetch) {
-        return;
-      }
-
       const targetLang = userNativeLanguageCode;
       if (!targetLang) {
         setTranslationStates((prev) => ({
           ...prev,
           [message.id]: {
-            loading: false,
-            text: null,
+            status: 'error',
+            translation: null,
             error: '翻訳先の言語が設定されていません。プロフィールを確認してください。',
-            visible: true,
+            showTranslation: false,
           },
         }));
         return;
       }
+
+      const current = translationStates[message.id];
+
+      if (current?.status === 'loading') {
+        return;
+      }
+
+      if (current?.showTranslation) {
+        setTranslationStates((prev) => ({
+          ...prev,
+          [message.id]: {
+            ...current,
+            showTranslation: false,
+          },
+        }));
+        return;
+      }
+
+      if (current?.status === 'done' && current.translation) {
+        setTranslationStates((prev) => ({
+          ...prev,
+          [message.id]: {
+            ...current,
+            showTranslation: true,
+          },
+        }));
+        return;
+      }
+
+      setTranslationStates((prev) => ({
+        ...prev,
+        [message.id]: {
+          status: 'loading',
+          translation: current?.translation ?? null,
+          error: null,
+          showTranslation: false,
+        },
+      }));
 
       try {
         const sourceLang = languageByUserId.get(message.senderId) ?? undefined;
@@ -222,10 +249,10 @@ export default function MatchChatPage() {
         setTranslationStates((prev) => ({
           ...prev,
           [message.id]: {
-            loading: false,
-            text: response.translation,
+            status: 'done',
+            translation: response.translation,
             error: null,
-            visible: true,
+            showTranslation: true,
           },
         }));
       } catch (err) {
@@ -233,10 +260,10 @@ export default function MatchChatPage() {
         setTranslationStates((prev) => ({
           ...prev,
           [message.id]: {
-            loading: false,
-            text: null,
+            status: 'error',
+            translation: null,
             error: err instanceof Error ? err.message : '翻訳に失敗しました',
-            visible: true,
+            showTranslation: false,
           },
         }));
       }
@@ -381,13 +408,15 @@ export default function MatchChatPage() {
               const isMine = message.senderId === user.id;
               if (message.type === 'TEXT') {
                 const translationState = translationStates[message.id];
-                const buttonLabel = translationState?.loading
+                const showTranslation = translationState?.showTranslation && translationState.status === 'done';
+                const displayedText = showTranslation ? translationState.translation ?? message.content : message.content;
+                const buttonLabel = translationState?.status === 'loading'
                   ? '翻訳中...'
-                  : translationState?.text
-                    ? translationState.visible
-                      ? '翻訳を隠す'
-                      : '翻訳を表示'
-                    : 'メッセージを翻訳する';
+                  : showTranslation
+                    ? '原文を表示'
+                    : translationState?.status === 'done'
+                      ? '翻訳結果を表示'
+                      : 'メッセージを翻訳する';
 
                 return (
                   <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
@@ -396,7 +425,7 @@ export default function MatchChatPage() {
                         isMine ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-900'
                       }`}
                     >
-                      <p>{message.content}</p>
+                      <p>{displayedText}</p>
                       <p className="mt-1 text-xs opacity-70">{new Date(message.createdAt).toLocaleString()}</p>
                       {!isMine ? (
                         <div className="mt-2 space-y-1">
@@ -404,14 +433,11 @@ export default function MatchChatPage() {
                             type="button"
                             className={`text-[11px] ${isMine ? 'text-blue-100' : 'text-blue-600'} underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:text-blue-300`}
                             onClick={() => void handleToggleTranslation(message)}
-                            disabled={translationState?.loading}
+                            disabled={translationState?.status === 'loading'}
                           >
                             {buttonLabel}
                           </button>
-                          {translationState?.visible && translationState?.text ? (
-                            <p className="whitespace-pre-wrap text-xs text-slate-700">{translationState.text}</p>
-                          ) : null}
-                          {translationState?.error ? (
+                          {translationState?.status === 'error' && translationState.error ? (
                             <p className="text-xs text-red-500">{translationState.error}</p>
                           ) : null}
                         </div>
