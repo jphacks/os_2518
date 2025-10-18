@@ -44,6 +44,8 @@ model User {
   messages         Message[]
   notifications    Notification[]
   refreshTokens    RefreshToken[]
+  schedulesProposed Schedule[]       @relation("ScheduleProposer")
+  schedulesReceived Schedule[]       @relation("ScheduleReceiver")
 
   @@map("users")
 }
@@ -88,6 +90,7 @@ model Match {
   receiver  User        @relation("MatchesReceiver", fields: [receiverId], references: [id])
   status    MatchStatus @relation(fields: [statusId], references: [id])
   messages  Message[]
+  schedules Schedule[]
 
   @@unique([requesterId, receiverId])
   @@map("matches")
@@ -98,16 +101,55 @@ model Message {
   matchId   Int       @map("match_id")
   senderId  Int       @map("sender_id")
   content   String
+  type      MessageType @default(TEXT)
+  scheduleId Int?      @map("schedule_id")
   isRead    Boolean   @default(false) @map("is_read")
   readAt    DateTime? @map("read_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  schedule Schedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   sender User  @relation(fields: [senderId], references: [id])
 
   @@index([matchId])
   @@map("messages")
+}
+
+model Schedule {
+  id         Int            @id @default(autoincrement())
+  matchId    Int            @map("match_id")
+  proposerId Int            @map("proposer_id")
+  receiverId Int            @map("receiver_id")
+  startTime  DateTime       @map("start_time")
+  endTime    DateTime       @map("end_time")
+  note       String?        @map("note")
+  status     ScheduleStatus @default(PROPOSED)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  match    Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  proposer User      @relation("ScheduleProposer", fields: [proposerId], references: [id], onDelete: Cascade)
+  receiver User      @relation("ScheduleReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([matchId, startTime])
+  @@index([proposerId])
+  @@index([receiverId])
+  @@map("schedules")
+}
+
+enum ScheduleStatus {
+  PROPOSED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum MessageType {
+  TEXT
+  SCHEDULE_PROPOSAL
+  SCHEDULE_CONFIRMED
 }
 
 model Notification {

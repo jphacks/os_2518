@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/context/AuthContext';
 import { listMatches, createMatch, acceptMatch, rejectMatch } from '@/lib/api/matches';
 import { listLanguages } from '@/lib/api/languages';
 import { listUsers } from '@/lib/api/users';
+import { listSchedules } from '@/lib/api/schedules';
 import { addTargetLanguage, removeTargetLanguage, updateProfile, uploadIcon } from '@/lib/api/profile';
 import { getCurrentUser } from '@/lib/api/auth';
 import { RecommendedList } from '@/components/home/RecommendedList';
@@ -16,21 +17,31 @@ import { NotificationList } from '@/components/home/NotificationList';
 import { ProfileEditor } from '@/components/home/ProfileEditor';
 import { SearchPanel } from '@/components/home/SearchPanel';
 import { MatchRequestModal } from '@/components/home/MatchRequestModal';
+import { CalendarPanel } from '@/components/home/CalendarPanel';
 import { ApiError } from '@/lib/api/client';
-import type { Language, Match, User } from '@/types/domain';
+import type { Language, Match, User, ScheduleWithCounterpart } from '@/types/domain';
 
-type TabKey = 'recommended' | 'contacts' | 'search' | 'profile' | 'notifications';
+type TabKey = 'recommended' | 'contacts' | 'search' | 'calendar' | 'profile' | 'notifications';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'recommended', label: 'おすすめ' },
   { key: 'contacts', label: '連絡済み' },
   { key: 'search', label: '検索' },
+  { key: 'calendar', label: 'カレンダー' },
   { key: 'profile', label: 'プロフィール' },
   { key: 'notifications', label: '通知' },
 ];
 
+const isValidTabKey = (value: string | null): value is TabKey => {
+  if (!value) {
+    return false;
+  }
+  return TABS.some((tab) => tab.key === value);
+};
+
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading, logout, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('recommended');
   const [languages, setLanguages] = useState<Language[]>([]);
@@ -39,17 +50,26 @@ export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [pendingMatches, setPendingMatches] = useState<Match[]>([]);
   const [allPendingMatches, setAllPendingMatches] = useState<Match[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleWithCounterpart[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Match | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sendingTo, setSendingTo] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const calendarLocale = 'ja';
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/login');
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab');
+    if (isValidTabKey(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const loadLanguages = useCallback(async () => {
     try {
@@ -101,6 +121,20 @@ export default function HomePage() {
     }
   }, [user]);
 
+  const loadSchedules = useCallback(async () => {
+    if (!user) {
+      setSchedules([]);
+      return;
+    }
+    try {
+      const response = await listSchedules();
+      setSchedules(response.schedules);
+    } catch (err) {
+      console.error(err);
+      setError('予定の取得に失敗しました');
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!user) {
       return;
@@ -109,7 +143,8 @@ export default function HomePage() {
     loadRecommended();
     loadAcceptedMatches();
     loadPendingMatches();
-  }, [user, loadLanguages, loadRecommended, loadAcceptedMatches, loadPendingMatches]);
+    loadSchedules();
+  }, [user, loadLanguages, loadRecommended, loadAcceptedMatches, loadPendingMatches, loadSchedules]);
 
   useEffect(() => {
     if (!user) {
@@ -151,6 +186,14 @@ export default function HomePage() {
               loadAcceptedMatches();
             }
             break;
+          case 'message.updated':
+            if (typeof payload.data.matchId === 'number' && payload.data.matchId > 0) {
+              loadAcceptedMatches();
+            }
+            break;
+          case 'schedule.changed':
+            loadSchedules();
+            break;
           default:
             break;
         }
@@ -166,7 +209,7 @@ export default function HomePage() {
     return () => {
       eventSource.close();
     };
-  }, [user, loadAcceptedMatches, loadPendingMatches]);
+  }, [user, loadAcceptedMatches, loadPendingMatches, loadSchedules]);
 
   const handleSendMatch = useCallback(
     async (receiverId: number) => {
@@ -327,6 +370,19 @@ export default function HomePage() {
     return ids;
   }, [allPendingMatches, user]);
 
+  const unavailableUserIds = useMemo(() => {
+    const ids = new Set<number>(pendingUserIds);
+    acceptedMatchMap.forEach((_, userId) => {
+      ids.add(userId);
+    });
+    return ids;
+  }, [acceptedMatchMap, pendingUserIds]);
+
+  const confirmedSchedules = useMemo(
+    () => schedules.filter((schedule) => schedule.status === 'CONFIRMED'),
+    [schedules],
+  );
+
   if (!user) {
     return null;
   }
@@ -378,6 +434,7 @@ export default function HomePage() {
               sendingTo={sendingTo}
               acceptedMatchMap={acceptedMatchMap}
               pendingUserIds={pendingUserIds}
+              unavailableUserIds={unavailableUserIds}
             />
           ) : null}
 
@@ -395,7 +452,12 @@ export default function HomePage() {
               loading={searchLoading}
               acceptedMatchMap={acceptedMatchMap}
               pendingUserIds={pendingUserIds}
+              unavailableUserIds={unavailableUserIds}
             />
+          ) : null}
+
+          {activeTab === 'calendar' ? (
+            <CalendarPanel schedules={confirmedSchedules} locale={calendarLocale} />
           ) : null}
 
           {activeTab === 'profile' ? (

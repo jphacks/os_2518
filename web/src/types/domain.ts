@@ -37,6 +37,8 @@ export type Message = {
   matchId: number;
   senderId: number;
   content: string;
+  type: 'TEXT' | 'SCHEDULE_PROPOSAL' | 'SCHEDULE_CONFIRMED';
+  schedule?: Schedule | null;
   isRead: boolean;
   readAt: string | null;
   createdAt: string;
@@ -56,4 +58,26 @@ export type Match = {
 export type PaginatedResponse<T> = {
   data: T;
   nextCursor: number | null;
+};
+
+export type ScheduleStatus = 'PROPOSED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+
+export type Schedule = {
+  id: number;
+  matchId: number;
+  proposerId: number;
+  receiverId: number;
+  startTime: string;
+  endTime: string;
+  note: string | null;
+  status: ScheduleStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ScheduleWithCounterpart = Schedule & {
+  counterpart: {
+    id: number;
+    displayName: string;
+  };
 };

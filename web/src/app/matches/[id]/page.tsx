@@ -7,8 +7,11 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getMatch } from '@/lib/api/matches';
 import { listMessages, markMessageAsRead, postMessage } from '@/lib/api/messages';
+import { createSchedule, acceptSchedule as acceptScheduleRequest } from '@/lib/api/schedules';
 import type { Match, Message } from '@/types/domain';
 import { ApiError } from '@/lib/api/client';
+import { ScheduleModal } from '@/components/matches/ScheduleModal';
+import { ScheduleMessageItem } from '@/components/matches/ScheduleMessageItem';
 
 export default function MatchChatPage() {
   const router = useRouter();
@@ -21,6 +24,10 @@ export default function MatchChatPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleActionLoading, setScheduleActionLoading] = useState<'confirm' | 'propose' | null>(null);
+  const [scheduleModalError, setScheduleModalError] = useState<string | null>(null);
+  const [acceptingScheduleId, setAcceptingScheduleId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const counterpart = useMemo(() => {
@@ -53,6 +60,77 @@ export default function MatchChatPage() {
       setError('メッセージの取得に失敗しました');
     }
   }, [matchId, user, scrollToBottom]);
+
+  const handleOpenScheduleModal = useCallback(() => {
+    setIsScheduleModalOpen(true);
+    setScheduleModalError(null);
+  }, []);
+
+  const handleScheduleAction = useCallback(
+    async (
+      action: 'confirm' | 'propose',
+      values: { date: string; startTime: string; endTime: string; note: string },
+    ) => {
+      if (!matchId || Number.isNaN(matchId)) {
+        setScheduleModalError('マッチング情報が正しくありません');
+        return;
+      }
+
+      setScheduleModalError(null);
+      setScheduleActionLoading(action);
+      try {
+        const start = new Date(`${values.date}T${values.startTime}`);
+        const end = new Date(`${values.date}T${values.endTime}`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          setScheduleModalError('日付と時間を正しく入力してください');
+          return;
+        }
+        if (end <= start) {
+          setScheduleModalError('終了時間は開始時間より後に設定してください');
+          return;
+        }
+
+        await createSchedule(matchId, {
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          note: values.note.trim() ? values.note.trim() : undefined,
+          action,
+        });
+        setIsScheduleModalOpen(false);
+        await loadMessages();
+      } catch (err) {
+        console.error(err);
+        if (err instanceof ApiError) {
+          setScheduleModalError(err.message);
+        } else {
+          setScheduleModalError('予定の追加に失敗しました');
+        }
+      } finally {
+        setScheduleActionLoading(null);
+      }
+    },
+    [matchId, loadMessages],
+  );
+
+  const handleAcceptSchedule = useCallback(
+    async (scheduleId: number) => {
+      setAcceptingScheduleId(scheduleId);
+      try {
+        await acceptScheduleRequest(scheduleId);
+        await loadMessages();
+      } catch (err) {
+        console.error(err);
+        setError('予定の登録に失敗しました');
+      } finally {
+        setAcceptingScheduleId(null);
+      }
+    },
+    [loadMessages],
+  );
+
+  const handleNavigateToCalendar = useCallback(() => {
+    router.push('/home?tab=calendar');
+  }, [router]);
 
   const loadMatchDetail = useCallback(async () => {
     try {
@@ -97,6 +175,12 @@ export default function MatchChatPage() {
           return;
         }
         if (payload.event === 'message.created' || payload.event === 'message.read') {
+          loadMessages();
+        }
+        if (payload.event === 'message.updated') {
+          loadMessages();
+        }
+        if (payload.event === 'schedule.changed' && payload.data?.matchId === matchId) {
           loadMessages();
         }
       } catch (err) {
@@ -161,17 +245,30 @@ export default function MatchChatPage() {
           <div className="space-y-4">
             {messages.map((message) => {
               const isMine = message.senderId === user.id;
-              return (
-                <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[70%] rounded-lg px-4 py-2 text-sm shadow-sm ${
-                      isMine ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-900'
-                    }`}
-                  >
-                    <p>{message.content}</p>
-                    <p className="mt-1 text-xs opacity-70">{new Date(message.createdAt).toLocaleString()}</p>
+              if (message.type === 'TEXT') {
+                return (
+                  <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`max-w-[70%] rounded-lg px-4 py-2 text-sm shadow-sm ${
+                        isMine ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-900'
+                      }`}
+                    >
+                      <p>{message.content}</p>
+                      <p className="mt-1 text-xs opacity-70">{new Date(message.createdAt).toLocaleString()}</p>
+                    </div>
                   </div>
-                </div>
+                );
+              }
+              return (
+                <ScheduleMessageItem
+                  key={message.id}
+                  message={message}
+                  isMine={isMine}
+                  currentUserId={user.id}
+                  onAccept={handleAcceptSchedule}
+                  accepting={acceptingScheduleId === message.schedule?.id}
+                  onNavigateToCalendar={handleNavigateToCalendar}
+                />
               );
             })}
             <div ref={bottomRef} />
@@ -186,7 +283,17 @@ export default function MatchChatPage() {
             onChange={(event) => setNewMessage(event.target.value)}
             placeholder="メッセージを入力..."
           />
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              onClick={handleOpenScheduleModal}
+            >
+              <span role="img" aria-hidden="true">
+                📅
+              </span>
+              <span>予定追加</span>
+            </button>
             <button
               type="button"
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
@@ -198,6 +305,17 @@ export default function MatchChatPage() {
           </div>
         </div>
       </main>
+      <ScheduleModal
+        open={isScheduleModalOpen}
+        onClose={() => {
+          setIsScheduleModalOpen(false);
+          setScheduleActionLoading(null);
+          setScheduleModalError(null);
+        }}
+        onAction={handleScheduleAction}
+        loadingAction={scheduleActionLoading}
+        errorMessage={scheduleModalError}
+      />
     </div>
   );
 }

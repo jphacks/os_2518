@@ -1,0 +1,14 @@
+export const SCHEDULE_STATUS = {
+  PROPOSED: 'PROPOSED',
+  CONFIRMED: 'CONFIRMED',
+  CANCELLED: 'CANCELLED',
+  COMPLETED: 'COMPLETED',
+} as const;
+
+export type ScheduleStatusCode = keyof typeof SCHEDULE_STATUS;
+
+export const SCHEDULE_MESSAGE_TYPE = {
+  TEXT: 'TEXT',
+  PROPOSAL: 'SCHEDULE_PROPOSAL',
+  CONFIRMED: 'SCHEDULE_CONFIRMED',
+} as const;
