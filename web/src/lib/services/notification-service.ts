@@ -1,11 +1,22 @@
-import { NotificationType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { AppError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { notificationsQuerySchema } from '@/lib/validators/notification';
 import { broadcastToUser } from '@/lib/websocket/registry';
 
-export async function createNotification(userId: number, type: NotificationType, payload: Prisma.InputJsonValue) {
+export type NotificationTypeValue =
+  | 'MATCH_REQUEST'
+  | 'MATCH_ACCEPT'
+  | 'MATCH_REJECT'
+  | 'MESSAGE_RECEIVED'
+  | 'MESSAGE_READ';
+
+export async function createNotification(
+  userId: number,
+  type: NotificationTypeValue,
+  payload: Prisma.InputJsonValue,
+) {
   const notification = await prisma.notification.create({
     data: {
       userId,
