@@ -2,13 +2,13 @@ import crypto from 'node:crypto';
 import { addDays, addMinutes } from 'date-fns';
 import jwt from 'jsonwebtoken';
 
-import type { Prisma } from '@prisma/client';
-
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 
-type DbUser = Prisma.User;
-type DbRefreshToken = Prisma.RefreshToken;
+type TokenUser = {
+  id: number;
+  email: string;
+};
 
 type AccessTokenPayload = {
   sub: number;
@@ -24,7 +24,7 @@ function hashRefreshToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export function generateAccessToken(user: DbUser) {
+export function generateAccessToken(user: TokenUser) {
   const payload: AccessTokenPayload = {
     sub: user.id,
     email: user.email,
@@ -38,7 +38,7 @@ export function generateAccessToken(user: DbUser) {
   return { token, expiresAt };
 }
 
-export async function generateRefreshToken(user: DbUser, metadata: TokenMetadata) {
+export async function generateRefreshToken(user: TokenUser, metadata: TokenMetadata) {
   const rawToken = crypto.randomBytes(32).toString('hex');
   const hashed = hashRefreshToken(rawToken);
   const expiresAt = addDays(new Date(), env.REFRESH_TOKEN_EXPIRES_IN_DAYS);
@@ -79,7 +79,7 @@ export async function revokeAllRefreshTokens(userId: number) {
   });
 }
 
-export async function verifyRefreshToken(rawToken: string): Promise<DbRefreshToken & { user: DbUser } | null> {
+export async function verifyRefreshToken(rawToken: string) {
   const hashed = hashRefreshToken(rawToken);
 
   const token = await prisma.refreshToken.findUnique({

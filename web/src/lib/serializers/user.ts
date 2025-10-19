@@ -1,14 +1,29 @@
-import type { Prisma } from '@prisma/client';
-
 import { env } from '@/lib/env';
 
-type UserWithRelations = Prisma.User & {
-  nativeLanguage?: Prisma.Language | null;
-  targets?: Array<
-    Prisma.TargetLanguage & {
-      language?: Prisma.Language | null;
-    }
-  >;
+type LanguageInfo = {
+  id: number;
+  code: string;
+  name: string;
+};
+
+type TargetLanguageInfo = {
+  id: number;
+  level: number;
+  language?: LanguageInfo | null;
+};
+
+type UserWithRelations = {
+  id: number;
+  displayName: string;
+  email: string;
+  hobby?: string | null;
+  skill?: string | null;
+  comment?: string | null;
+  iconPath?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  nativeLanguage?: LanguageInfo | null;
+  targets?: TargetLanguageInfo[];
 };
 
 export function serializeUser(user: UserWithRelations) {
