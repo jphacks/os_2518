@@ -79,6 +79,11 @@ Codex CILを生かしたvibe coding
 #### 仕様書
 - [詳細仕様書はこちら](docs/spec.md)
 
+## デプロイ
+- Next.js (App Router) は Vercel にデプロイし、フロントエンドと API を同一プロジェクトで稼働。
+- データベースは Render の PostgreSQL を利用し、Prisma 経由で接続。
+- 本番 URL: https://os-2518.vercel.app/
+
 ### 独自技術
 
 #### ハッカソンで開発した独自機能・技術
