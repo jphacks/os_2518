@@ -109,6 +109,17 @@ export async function listMatches(userId: number, query: Record<string, string |
       messages: {
         orderBy: { createdAt: 'desc' },
         take: 1,
+        select: {
+          id: true,
+          matchId: true,
+          senderId: true,
+          content: true,
+          type: true,
+          isRead: true,
+          readAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       },
     },
   });

@@ -2,26 +2,47 @@
 
 import { FormEvent, useState } from 'react';
 
+import { RecommendedList } from '@/components/home/RecommendedList';
 import { Language, User } from '@/types/domain';
 
-type SearchForm = {
+type SearchFormState = {
   displayName: string;
   nativeLanguageCode: string;
   targetLanguageCode: string;
   targetLevelGte: number | '';
 };
 
+export type SearchCriteria = Partial<{
+  displayName: string;
+  nativeLanguageCode: string;
+  targetLanguageCode: string;
+  targetLevelGte: number;
+}>;
+
 type Props = {
   languages: Language[];
   results: User[];
-  onSearch: (criteria: Partial<SearchForm>) => Promise<void>;
+  onSearch: (criteria: SearchCriteria) => Promise<void>;
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   loading?: boolean;
+  acceptedMatchMap?: Map<number, number>;
+  pendingUserIds?: Set<number>;
+  unavailableUserIds?: Set<number>;
 };
 
-export function SearchPanel({ languages, results, onSearch, onSendMatch, sendingTo, loading }: Props) {
-  const [form, setForm] = useState<SearchForm>({
+export function SearchPanel({
+  languages,
+  results,
+  onSearch,
+  onSendMatch,
+  sendingTo,
+  loading,
+  acceptedMatchMap,
+  pendingUserIds,
+  unavailableUserIds,
+}: Props) {
+  const [form, setForm] = useState<SearchFormState>({
     displayName: '',
     nativeLanguageCode: '',
     targetLanguageCode: '',
@@ -115,32 +136,15 @@ export function SearchPanel({ languages, results, onSearch, onSendMatch, sending
         </button>
       </form>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {results.map((user) => (
-          <article key={user.id} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-base font-semibold text-slate-900">{user.displayName}</h3>
-            <p className="text-sm text-slate-600">母国語: {user.nativeLanguage?.name ?? '未設定'}</p>
-            <p className="text-sm text-slate-600">趣味: {user.hobby ?? '未設定'}</p>
-            <div className="mt-2 text-xs text-slate-500">
-              練習中:
-              <ul className="mt-1 space-y-0.5">
-                {user.targetLanguages.map((target) => (
-                  <li key={target.id}>{target.language?.name ?? '未設定'} / レベル {target.level}</li>
-                ))}
-              </ul>
-            </div>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => onSendMatch(user.id)}
-              disabled={sendingTo === user.id}
-            >
-              {sendingTo === user.id ? '送信中...' : 'マッチングを送る'}
-            </button>
-          </article>
-        ))}
-        {results.length === 0 ? <p className="text-sm text-slate-600">検索結果はありません。</p> : null}
-      </div>
+      <RecommendedList
+        users={results}
+        onSendMatch={onSendMatch}
+        sendingTo={sendingTo}
+        emptyMessage="検索結果はありません。"
+        acceptedMatchMap={acceptedMatchMap}
+        pendingUserIds={pendingUserIds}
+        unavailableUserIds={unavailableUserIds}
+      />
     </div>
   );
 }

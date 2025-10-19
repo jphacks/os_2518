@@ -23,6 +23,8 @@ export default function RegisterPage() {
   const [loadingLanguages, setLoadingLanguages] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [policyConfirmed, setPolicyConfirmed] = useState(false);
   const [form, setForm] = useState({
     displayName: '',
     email: '',
@@ -71,15 +73,23 @@ export default function RegisterPage() {
     setTargets((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-
+  const getTargetError = () => {
     if (targets.length === 0 || targets.some((target) => !target.languageCode)) {
-      setError('練習したい言語を少なくとも1つ選択してください');
+      return '練習したい言語を少なくとも1つ選択してください';
+    }
+    return null;
+  };
+
+  const performRegister = async () => {
+    if (submitting || loading) {
       return;
     }
-
+    const targetError = getTargetError();
+    if (targetError) {
+      setError(targetError);
+      return;
+    }
+    setError(null);
     setSubmitting(true);
     try {
       await register({
@@ -102,6 +112,33 @@ export default function RegisterPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const targetError = getTargetError();
+    if (targetError) {
+      setError(targetError);
+      return;
+    }
+    setError(null);
+    if (!policyConfirmed) {
+      setShowPolicyModal(true);
+      return;
+    }
+    void performRegister();
+  };
+
+  const handleAcceptPolicy = () => {
+    const targetError = getTargetError();
+    if (targetError) {
+      setError(targetError);
+      return;
+    }
+    setError(null);
+    setPolicyConfirmed(true);
+    setShowPolicyModal(false);
+    void performRegister();
   };
 
   return (
@@ -260,6 +297,122 @@ export default function RegisterPage() {
           </button>
         </div>
       </div>
+      {showPolicyModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div
+            className="w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="privacy-policy-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h2 id="privacy-policy-title" className="text-lg font-semibold text-slate-900">
+                プライバシーポリシー
+              </h2>
+              <button
+                type="button"
+                className="text-slate-500 transition hover:text-slate-700"
+                onClick={() => setShowPolicyModal(false)}
+                aria-label="閉じる"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="h-[60vh] overflow-y-auto px-6 py-4 text-sm text-slate-700">
+              <div className="space-y-5">
+                <p>
+                  Lingua Bridge（以下「本サービス」）は gold apple（以下「当チーム」）が提供する交流マッチングサービスです。以下の方針に基づき、利用者の個人情報を適切に取り扱います。なお、本サービスは現在ベータ版として提供しており、仕様は予告なく変更される可能性があります。
+                </p>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">1. 収集する情報</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>必須情報: 表示名、メールアドレス、パスワード、母国語、練習したい言語、習熟度レベル</li>
+                    <li>任意情報: 趣味、特技、自己紹介コメント、アイコン画像</li>
+                    <li>
+                      サービス利用時に生成される情報: マッチング履歴、メッセージ内容、予定（開始・終了時刻・メモ・提案状況）、通知履歴、利用ログ（アクセス日時・IP アドレス・端末情報など）
+                    </li>
+                    <li>外部サービス連携で取得する情報: DeepL API の翻訳結果、Gmail リマインダー送信履歴</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">2. 情報の利用目的</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>本サービスの提供、本人確認、ログイン・セッション管理</li>
+                    <li>プロフィール作成・表示、マッチング・検索機能の提供</li>
+                    <li>メッセージ・予定調整機能など交流機能の運用</li>
+                    <li>利用状況分析によるサービス改善や新機能開発</li>
+                    <li>重要なお知らせ、サポート対応、不正防止・セキュリティ対策</li>
+                    <li>法令や利用規約に基づく対応</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">3. 第三者提供・外部委託</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>本人の同意なく第三者に提供することはありません。</li>
+                    <li>例外的に法令に基づく要請、生命・財産の保護、事業承継等で提供する場合があります。</li>
+                    <li>DeepL API や Google/Gmail など外部サービスに必要最小限の情報を送信し、各社の規約・ポリシーに従います。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">4. 情報の安全管理</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>パスワードは bcrypt により暗号化して保存します。</li>
+                    <li>アクセス権限管理やログ監視など、適切な安全管理措置を講じます。</li>
+                    <li>一定期間利用のない情報は削除または匿名化する場合があります。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">5. 利用者の権利</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>登録情報の閲覧・修正はプロフィール設定から行えます。</li>
+                    <li>アカウント削除や利用停止の機能は現時点で提供しておらず、今後のアップデートでの対応を検討しています。</li>
+                    <li>本人確認フローは未実装のため、申し出時に追加情報を求める場合があります。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">6. クッキー等の利用</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>セッション維持や利用状況分析のためにクッキー等を利用することがあります。</li>
+                    <li>ブラウザの設定で無効化できますが、一部機能が利用できなくなる可能性があります。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">7. 未成年の利用</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>16 歳未満の利用は保護者の同意を前提とした自己申告に依存しており、アプリ内で同意を確認する機能はありません。</li>
+                    <li>保護者と十分に相談したうえでご利用ください。</li>
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">8. プライバシーポリシーの変更</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li>必要に応じて改定し、アプリ内またはウェブサイトで告知します。</li>
+                    <li>重要な変更がある場合は、適切な方法で周知します。</li>
+                  </ul>
+                </div>
+                <p>当チームは、本サービスを安心してご利用いただけるよう、上記方針を継続的に見直し、適切に運用します。</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                onClick={() => setShowPolicyModal(false)}
+              >
+                戻る
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleAcceptPolicy}
+                disabled={loading || submitting}
+              >
+                同意して登録
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

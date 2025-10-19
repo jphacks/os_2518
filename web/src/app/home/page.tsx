@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { useAuth } from '@/context/AuthContext';
 import { listMatches, createMatch, acceptMatch, rejectMatch } from '@/lib/api/matches';
 import { listLanguages } from '@/lib/api/languages';
 import { listUsers } from '@/lib/api/users';
+import { listSchedules } from '@/lib/api/schedules';
 import { addTargetLanguage, removeTargetLanguage, updateProfile, uploadIcon } from '@/lib/api/profile';
 import { getCurrentUser } from '@/lib/api/auth';
 import { RecommendedList } from '@/components/home/RecommendedList';
@@ -15,22 +16,33 @@ import { MatchList } from '@/components/home/MatchList';
 import { NotificationList } from '@/components/home/NotificationList';
 import { ProfileEditor } from '@/components/home/ProfileEditor';
 import { SearchPanel } from '@/components/home/SearchPanel';
+import type { SearchCriteria } from '@/components/home/SearchPanel';
 import { MatchRequestModal } from '@/components/home/MatchRequestModal';
+import { CalendarPanel } from '@/components/home/CalendarPanel';
 import { ApiError } from '@/lib/api/client';
-import type { Language, Match, User } from '@/types/domain';
+import type { Language, Match, User, ScheduleWithCounterpart } from '@/types/domain';
 
-type TabKey = 'recommended' | 'contacts' | 'search' | 'profile' | 'notifications';
+type TabKey = 'recommended' | 'contacts' | 'search' | 'calendar' | 'profile' | 'notifications';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'recommended', label: 'おすすめ' },
   { key: 'contacts', label: '連絡済み' },
   { key: 'search', label: '検索' },
+  { key: 'calendar', label: 'カレンダー' },
   { key: 'profile', label: 'プロフィール' },
   { key: 'notifications', label: '通知' },
 ];
 
-export default function HomePage() {
+const isValidTabKey = (value: string | null): value is TabKey => {
+  if (!value) {
+    return false;
+  }
+  return TABS.some((tab) => tab.key === value);
+};
+
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading, logout, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>('recommended');
   const [languages, setLanguages] = useState<Language[]>([]);
@@ -38,17 +50,27 @@ export default function HomePage() {
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [pendingMatches, setPendingMatches] = useState<Match[]>([]);
+  const [allPendingMatches, setAllPendingMatches] = useState<Match[]>([]);
+  const [schedules, setSchedules] = useState<ScheduleWithCounterpart[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Match | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sendingTo, setSendingTo] = useState<number | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const calendarLocale = 'ja';
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/login');
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab');
+    if (isValidTabKey(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   const loadLanguages = useCallback(async () => {
     try {
@@ -76,7 +98,19 @@ export default function HomePage() {
   const loadAcceptedMatches = useCallback(async () => {
     try {
       const response = await listMatches({ status: 'ACCEPTED', limit: 50 });
-      setMatches(response.matches);
+      const parsedTime = (value: string | undefined) => {
+        if (!value) {
+          return 0;
+        }
+        const time = new Date(value).getTime();
+        return Number.isNaN(time) ? 0 : time;
+      };
+      const sorted = [...response.matches].sort(
+        (a, b) =>
+          parsedTime(b.latestMessage?.createdAt ?? b.updatedAt ?? b.createdAt) -
+          parsedTime(a.latestMessage?.createdAt ?? a.updatedAt ?? a.createdAt),
+      );
+      setMatches(sorted);
     } catch (err) {
       console.error(err);
       setError('マッチング情報の取得に失敗しました');
@@ -84,14 +118,35 @@ export default function HomePage() {
   }, []);
 
   const loadPendingMatches = useCallback(async () => {
+    if (!user) {
+      setPendingMatches([]);
+      setAllPendingMatches([]);
+      return;
+    }
     try {
       const response = await listMatches({ status: 'PENDING', limit: 50 });
-      setPendingMatches(response.matches);
+      setAllPendingMatches(response.matches);
+      const incomingRequests = response.matches.filter((match) => match.receiver.id === user.id);
+      setPendingMatches(incomingRequests);
     } catch (err) {
       console.error(err);
       setError('チャット申請の取得に失敗しました');
     }
-  }, []);
+  }, [user]);
+
+  const loadSchedules = useCallback(async () => {
+    if (!user) {
+      setSchedules([]);
+      return;
+    }
+    try {
+      const response = await listSchedules();
+      setSchedules(response.schedules);
+    } catch (err) {
+      console.error(err);
+      setError('予定の取得に失敗しました');
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -101,7 +156,8 @@ export default function HomePage() {
     loadRecommended();
     loadAcceptedMatches();
     loadPendingMatches();
-  }, [user, loadLanguages, loadRecommended, loadAcceptedMatches, loadPendingMatches]);
+    loadSchedules();
+  }, [user, loadLanguages, loadRecommended, loadAcceptedMatches, loadPendingMatches, loadSchedules]);
 
   useEffect(() => {
     if (!user) {
@@ -143,6 +199,14 @@ export default function HomePage() {
               loadAcceptedMatches();
             }
             break;
+          case 'message.updated':
+            if (typeof payload.data.matchId === 'number' && payload.data.matchId > 0) {
+              loadAcceptedMatches();
+            }
+            break;
+          case 'schedule.changed':
+            loadSchedules();
+            break;
           default:
             break;
         }
@@ -158,7 +222,7 @@ export default function HomePage() {
     return () => {
       eventSource.close();
     };
-  }, [user, loadAcceptedMatches, loadPendingMatches]);
+  }, [user, loadAcceptedMatches, loadPendingMatches, loadSchedules]);
 
   const handleSendMatch = useCallback(
     async (receiverId: number) => {
@@ -166,7 +230,7 @@ export default function HomePage() {
       setError(null);
       try {
         await createMatch({ receiverId });
-        await loadAcceptedMatches();
+        await Promise.all([loadAcceptedMatches(), loadPendingMatches()]);
       } catch (err) {
         console.error(err);
         if (err instanceof ApiError) {
@@ -178,11 +242,11 @@ export default function HomePage() {
         setSendingTo(null);
       }
     },
-    [loadAcceptedMatches],
+    [loadAcceptedMatches, loadPendingMatches],
   );
 
   const handleSearch = useCallback(
-    async (criteria: Partial<{ displayName: string; nativeLanguageCode: string; targetLanguageCode: string; targetLevelGte: number }>) => {
+    async (criteria: SearchCriteria) => {
       setSearchLoading(true);
       try {
         const response = await listUsers({ mode: 'search', ...criteria });
@@ -295,6 +359,42 @@ export default function HomePage() {
   );
 
   const pendingCount = useMemo(() => pendingMatches.length, [pendingMatches]);
+  const acceptedMatchMap = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!user) {
+      return map;
+    }
+    matches.forEach((match) => {
+      const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
+      map.set(otherId, match.id);
+    });
+    return map;
+  }, [matches, user]);
+
+  const pendingUserIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (!user) {
+      return ids;
+    }
+    allPendingMatches.forEach((match) => {
+      const otherId = match.requester.id === user.id ? match.receiver.id : match.requester.id;
+      ids.add(otherId);
+    });
+    return ids;
+  }, [allPendingMatches, user]);
+
+  const unavailableUserIds = useMemo(() => {
+    const ids = new Set<number>(pendingUserIds);
+    acceptedMatchMap.forEach((_, userId) => {
+      ids.add(userId);
+    });
+    return ids;
+  }, [acceptedMatchMap, pendingUserIds]);
+
+  const confirmedSchedules = useMemo(
+    () => schedules.filter((schedule) => schedule.status === 'CONFIRMED'),
+    [schedules],
+  );
 
   if (!user) {
     return null;
@@ -341,7 +441,14 @@ export default function HomePage() {
 
         <section className="mt-6">
           {activeTab === 'recommended' ? (
-            <RecommendedList users={recommendedUsers} onSendMatch={handleSendMatch} sendingTo={sendingTo} />
+            <RecommendedList
+              users={recommendedUsers}
+              onSendMatch={handleSendMatch}
+              sendingTo={sendingTo}
+              acceptedMatchMap={acceptedMatchMap}
+              pendingUserIds={pendingUserIds}
+              unavailableUserIds={unavailableUserIds}
+            />
           ) : null}
 
           {activeTab === 'contacts' ? (
@@ -356,7 +463,14 @@ export default function HomePage() {
               onSendMatch={handleSendMatch}
               sendingTo={sendingTo}
               loading={searchLoading}
+              acceptedMatchMap={acceptedMatchMap}
+              pendingUserIds={pendingUserIds}
+              unavailableUserIds={unavailableUserIds}
             />
+          ) : null}
+
+          {activeTab === 'calendar' ? (
+            <CalendarPanel schedules={confirmedSchedules} locale={calendarLocale} />
           ) : null}
 
           {activeTab === 'profile' ? (
@@ -388,5 +502,13 @@ export default function HomePage() {
         onClose={handleCloseModal}
       />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <HomePageContent />
+    </Suspense>
   );
 }
