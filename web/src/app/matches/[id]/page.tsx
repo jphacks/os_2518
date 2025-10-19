@@ -60,7 +60,10 @@ export default function MatchChatPage() {
     return map;
   }, [match]);
 
-const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, [user.nativeLanguage?.code]);
+  const userNativeLanguageCode = useMemo(
+    () => user?.nativeLanguage?.code ?? null,
+    [user?.nativeLanguage?.code],
+  );
 
   useEffect(() => {
     setTranslationStates({});
@@ -187,6 +190,10 @@ const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, 
 
   const handleToggleTranslation = useCallback(
     async (message: Message) => {
+      if (!user) {
+        return;
+      }
+
       if (message.senderId === user.id) {
         return;
       }
@@ -280,7 +287,7 @@ const userNativeLanguageCode = useMemo(() => user.nativeLanguage?.code ?? null, 
         }));
       }
     },
-    [languageByUserId, translationStates, user.id, userNativeLanguageCode],
+    [languageByUserId, translationStates, user?.id, userNativeLanguageCode],
   );
 
   const loadMatchDetail = useCallback(async () => {
