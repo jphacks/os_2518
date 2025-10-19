@@ -4,17 +4,17 @@ import { prisma } from '@/lib/prisma';
 import { error, ok } from '@/lib/http/responses';
 import { isAppError } from '@/lib/errors';
 
-export async function POST(request: NextRequest, context: { params: Promise<{ matchId: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser(request);
-    const { matchId } = await context.params;
-    const id = Number(matchId);
+    const { id: rawMatchId } = await context.params;
+    const matchId = Number(rawMatchId);
 
-    if (Number.isNaN(id)) return error('INVALID_MATCH_ID', 'Invalid match id', 400);
+    if (Number.isNaN(matchId)) return error('INVALID_MATCH_ID', 'Invalid match id', 400);
 
     const updated = await prisma.message.updateMany({
       where: {
-        matchId: id,
+        matchId,
         senderId: { not: user.id }, // 自分以外のメッセージ
         isRead: false,
       },

@@ -5,17 +5,24 @@ import { FormEvent, useState } from 'react';
 import { RecommendedList } from '@/components/home/RecommendedList';
 import { Language, User } from '@/types/domain';
 
-type SearchForm = {
+type SearchFormState = {
   displayName: string;
   nativeLanguageCode: string;
   targetLanguageCode: string;
   targetLevelGte: number | '';
 };
 
+export type SearchCriteria = Partial<{
+  displayName: string;
+  nativeLanguageCode: string;
+  targetLanguageCode: string;
+  targetLevelGte: number;
+}>;
+
 type Props = {
   languages: Language[];
   results: User[];
-  onSearch: (criteria: Partial<SearchForm>) => Promise<void>;
+  onSearch: (criteria: SearchCriteria) => Promise<void>;
   onSendMatch: (userId: number) => Promise<void>;
   sendingTo?: number | null;
   loading?: boolean;
@@ -35,7 +42,7 @@ export function SearchPanel({
   pendingUserIds,
   unavailableUserIds,
 }: Props) {
-  const [form, setForm] = useState<SearchForm>({
+  const [form, setForm] = useState<SearchFormState>({
     displayName: '',
     nativeLanguageCode: '',
     targetLanguageCode: '',

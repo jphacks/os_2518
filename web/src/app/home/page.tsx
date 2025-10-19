@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -16,6 +16,7 @@ import { MatchList } from '@/components/home/MatchList';
 import { NotificationList } from '@/components/home/NotificationList';
 import { ProfileEditor } from '@/components/home/ProfileEditor';
 import { SearchPanel } from '@/components/home/SearchPanel';
+import type { SearchCriteria } from '@/components/home/SearchPanel';
 import { MatchRequestModal } from '@/components/home/MatchRequestModal';
 import { CalendarPanel } from '@/components/home/CalendarPanel';
 import { ApiError } from '@/lib/api/client';
@@ -39,7 +40,7 @@ const isValidTabKey = (value: string | null): value is TabKey => {
   return TABS.some((tab) => tab.key === value);
 };
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, logout, setUser } = useAuth();
@@ -245,7 +246,7 @@ export default function HomePage() {
   );
 
   const handleSearch = useCallback(
-    async (criteria: Partial<{ displayName: string; nativeLanguageCode: string; targetLanguageCode: string; targetLevelGte: number }>) => {
+    async (criteria: SearchCriteria) => {
       setSearchLoading(true);
       try {
         const response = await listUsers({ mode: 'search', ...criteria });
@@ -501,5 +502,13 @@ export default function HomePage() {
         onClose={handleCloseModal}
       />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <HomePageContent />
+    </Suspense>
   );
 }
