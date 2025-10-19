@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 
-import { User } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { AppError } from '@/lib/errors';
 import { env } from '@/lib/env';
@@ -15,7 +15,12 @@ export type SessionTokens = {
   refreshTokenExpiresAt: Date;
 };
 
-export async function issueSessionTokens(user: User, metadata?: { userAgent?: string | null; ipAddress?: string | null }) {
+type DbUser = Prisma.User;
+
+export async function issueSessionTokens(
+  user: DbUser,
+  metadata?: { userAgent?: string | null; ipAddress?: string | null },
+) {
   const { token: accessToken, expiresAt: accessTokenExpiresAt } = generateAccessToken(user);
   const { token: refreshToken, expiresAt: refreshTokenExpiresAt } = await generateRefreshToken(user, metadata ?? {});
 
@@ -27,7 +32,7 @@ export async function issueSessionTokens(user: User, metadata?: { userAgent?: st
   } satisfies SessionTokens;
 }
 
-export async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
+export async function getAuthenticatedUser(request: NextRequest): Promise<DbUser | null> {
   const authHeader = request.headers.get('authorization');
   const tokenFromHeader = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : null;
   const cookieToken = request.cookies.get('accessToken')?.value ?? null;

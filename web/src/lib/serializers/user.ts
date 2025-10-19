@@ -1,12 +1,12 @@
-import { Language, TargetLanguage, User } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { env } from '@/lib/env';
 
-type UserWithRelations = User & {
-  nativeLanguage?: Language | null;
+type UserWithRelations = Prisma.User & {
+  nativeLanguage?: Prisma.Language | null;
   targets?: Array<
-    TargetLanguage & {
-      language?: Language | null;
+    Prisma.TargetLanguage & {
+      language?: Prisma.Language | null;
     }
   >;
 };
