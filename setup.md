@@ -16,6 +16,12 @@ GMAIL_USER=<Gmail のメールアドレス>
 GMAIL_APP_PASSWORD=<アプリ用パスワード>
 ```
 
+翻訳機能を利用する場合は DeepL の API キーも設定してください。
+
+```
+DEEPL_API_KEY=<DeepL API Key>
+```
+
 ## コマンド
 
 ```bash
