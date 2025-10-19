@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 
+import { requireUser } from '@/lib/auth/session';
+import { isAppError } from '@/lib/errors';
 import { error, ok } from '@/lib/http/responses';
 
 const DEEPL_ENDPOINT = process.env.DEEPL_API_ENDPOINT ?? 'https://api-free.deepl.com/v2/translate';
@@ -13,6 +15,8 @@ function normalizeLang(code?: string | null) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireUser(request);
+
     const apiKey = process.env.DEEPL_API_KEY;
     if (!apiKey) {
       return error('DEEPL_API_KEY_MISSING', 'DeepL API key is not configured', 500);
@@ -61,6 +65,9 @@ export async function POST(request: NextRequest) {
 
     return ok({ translation });
   } catch (err) {
+    if (isAppError(err)) {
+      return error(err.code, err.message, err.status, err.details);
+    }
     console.error('Translation error', err);
     return error('INTERNAL_SERVER_ERROR', 'Unexpected error', 500);
   }
