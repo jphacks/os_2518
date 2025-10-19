@@ -7,13 +7,15 @@ import { serializeUser } from '@/lib/serializers/user';
 import { listMatches, requestMatch } from '@/lib/services/match-service';
 import { createMatchSchema } from '@/lib/validators/match';
 
+type MatchWithRelations = Awaited<ReturnType<typeof listMatches>>['matches'][number];
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser(request);
     const { matches, nextCursor } = await listMatches(user.id, Object.fromEntries(request.nextUrl.searchParams));
 
     return ok({
-      matches: matches.map((match) => ({
+      matches: matches.map((match: MatchWithRelations) => ({
         id: match.id,
         status: match.status.code,
         requester: serializeUser(match.requester),
