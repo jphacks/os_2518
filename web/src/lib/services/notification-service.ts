@@ -1,5 +1,3 @@
-import type { Prisma } from '@prisma/client';
-
 import { AppError } from '@/lib/errors';
 import { prisma } from '@/lib/prisma';
 import { notificationsQuerySchema } from '@/lib/validators/notification';
@@ -12,7 +10,7 @@ export type NotificationTypeValue =
   | 'MESSAGE_RECEIVED'
   | 'MESSAGE_READ';
 
-type NotificationPayload = Prisma.NotificationCreateInput['payload'];
+type NotificationPayload = Parameters<typeof prisma.notification.create>[0]['data']['payload'];
 
 export async function createNotification(
   userId: number,
